@@ -1,20 +1,28 @@
 {
   "name": "fullgpu-render",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Programmatic video rendering that stays on the GPU end to end (NVDEC -> wgpu/WebGPU -> NVENC)",
   "license": "MIT OR Apache-2.0",
   "repository": "github:WassimAarab08/fullgpu-render",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "test": "node --test scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
-    "layout": "node scene/scene.mjs > out/layout.json",
+    "test": "node --test sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
+    "build": "cargo build --release --manifest-path native/Cargo.toml",
     "media": "bash tools/make-sample-media.sh",
+    "render": "node sdk/render.mjs",
+    "examples": "node sdk/render.mjs examples/app-promo.mjs out/app-promo.mp4 && node sdk/render.mjs examples/benchmark-story.mjs out/benchmark-story.mp4 && node sdk/render.mjs examples/multilingual-titles.mjs out/multilingual-titles.mp4 && node sdk/render.mjs examples/social-vertical.mjs out/social-vertical.mp4",
+    "layout": "node scene/scene.mjs > out/layout.json",
     "render:browser": "node browser/server.mjs --out=browser.mp4",
     "bench": "bash tools/run-bench.sh"
   },
   "dependencies": {
     "mediabunny": "1.62.0"
+  },
+  "exports": {
+    ".": "./sdk/index.mjs"
   }
 }

@@ -22,7 +22,9 @@ cd native && cargo test --release  # add `-- --include-ignored` on a machine wit
 
 | Path | What |
 |---|---|
-| `scene/` | Scene model → per-frame draw lists (the engine input format) |
+| `sdk/` | Composition SDK and Remotion-compatible animation core |
+| `examples/` | Example compositions (rendered GIFs in `docs/examples/`) |
+| `scene/` | Benchmark scene (draw-list format reference) |
 | `shaders/` | WGSL shared by WebGPU (browser) and wgpu (native) |
 | `native/` | Rust engine: NVDEC → wgpu → NVENC |
 | `browser/` | WebGPU + WebCodecs engine and its local server |

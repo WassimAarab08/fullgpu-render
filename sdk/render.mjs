@@ -9,7 +9,7 @@ import { compile } from "./compose.mjs";
 const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const [entry, out] = process.argv.slice(2);
 if (!entry || !out) {
-  console.error("Uso: node sdk/render.mjs <composición.mjs> <salida.mp4>");
+  console.error("Usage: node sdk/render.mjs <composition.mjs> <out.mp4>");
   process.exit(2);
 }
 const t0 = performance.now();
@@ -21,10 +21,10 @@ writeFileSync(layoutPath, JSON.stringify(layout));
 const compileMs = performance.now() - t0;
 const exe = ["release", "debug"].map((p) => resolve(ROOT, `native/target/${p}/fullgpu-render${process.platform === "win32" ? ".exe" : ""}`)).find(existsSync);
 if (!exe) {
-  console.error("Compila primero el motor: cargo build --release --manifest-path native/Cargo.toml");
+  console.error("Build the native engine first: npm run build");
   process.exit(1);
 }
 const r = spawnSync(exe, [layoutPath, ROOT, resolve(out)], { stdio: ["ignore", "pipe", "inherit"] });
 const stats = JSON.parse(String(r.stdout || "{}") || "{}");
-console.log(`${out}: ${layout.frames.length} fotogramas, compilado en ${(compileMs / 1000).toFixed(1)} s, render a ${Math.round(stats.fps ?? 0)} fps (total ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+console.log(`${out}: ${layout.frames.length} frames, compiled in ${(compileMs / 1000).toFixed(1)} s, rendered at ${Math.round(stats.fps ?? 0)} fps (total ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
 process.exit(r.status ?? 1);

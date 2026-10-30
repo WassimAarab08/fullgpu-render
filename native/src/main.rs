@@ -18,7 +18,7 @@ const LOOKAHEAD: usize = 150;
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    anyhow::ensure!(args.len() == 4, "uso: fullgpu-render <layout.json> <carpeta raíz de medios> <salida.mp4>");
+    anyhow::ensure!(args.len() == 4, "usage: fullgpu-render <layout.json> <media root> <out.mp4>");
     let root = &args[2];
     let t_init = Instant::now();
     let layout = layout::Layout::parse(&std::fs::read_to_string(&args[1])?)?;
@@ -26,7 +26,7 @@ fn main() -> anyhow::Result<()> {
     let n = layout.frames.len();
 
     let mut comp = gpu::Compositor::new(sc.width, sc.height, &sc.background)?;
-    eprintln!("Adaptador wgpu: {} ({:?}, vendor {:#06x})", comp.adapter.name, comp.adapter.backend, comp.adapter.vendor);
+    eprintln!("wgpu adapter: {} ({:?}, vendor {:#06x})", comp.adapter.name, comp.adapter.backend, comp.adapter.vendor);
 
     let mut texts = text::TextRasterizer::new();
     for t in &sc.texts {

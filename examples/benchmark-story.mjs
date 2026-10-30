@@ -21,7 +21,7 @@ const BAR_W = 1080;
 export default composition({ width: W, height: H, fps: FPS, durationInFrames: 270, background: "#0B0F24" }, ({ frame }) => {
   const title = spring({ frame, fps: FPS, config: { damping: 15 } });
   const punch = spring({ frame, fps: FPS, delay: 170, config: { damping: 9, stiffness: 120 } });
-  const dim = interpolate(frame, [165, 185], [1, 0.35], clamp);
+  const dim = interpolate(frame, [165, 185], [1, 0.45], clamp);
   return [
     rect({ x: 0, y: 0, width: W, height: H, gradient: { from: "#0B0F24", to: "#1A1240", angle: 160 } }),
     image({ src: "docs/logo.png", x: 120, y: 80, width: 56, height: 56, radius: 12 }),
@@ -31,7 +31,7 @@ export default composition({ width: W, height: H, fps: FPS, durationInFrames: 27
       text({ text: "Time to render (seconds, lower is better)", x: W / 2, y: 300, size: 30, weight: 500, color: "#9C98D9" }),
     ]),
     ...ROWS.flatMap((row, i) => {
-      const y = 400 + i * 140;
+      const y = 360 + i * 120;
       const grow = spring({ frame, fps: FPS, delay: 25 + i * 18, config: { damping: 18, stiffness: 90 } });
       const value = interpolate(grow, [0, 1], [0, row.seconds], clamp);
       const w = Math.max(24, (BAR_W * row.seconds * grow) / MAX);
@@ -47,10 +47,10 @@ export default composition({ width: W, height: H, fps: FPS, durationInFrames: 27
         ]),
       ];
     }),
-    group({ x: 1560, y: 860, scale: 0.4 + 0.6 * punch, opacity: Math.min(1, punch * 1.5) }, [
-      rect({ x: -230, y: -95, width: 460, height: 190, radius: 40, gradient: { from: "#14B88A", to: "#5B4BDB", angle: 120 }, shadow: { y: 20, blur: 60, color: "rgba(20,184,138,0.5)" } }),
-      text({ text: "23×", x: 0, y: -18, size: 110, weight: 900, color: "#FFFFFF" }),
-      text({ text: "faster than Remotion", x: 0, y: 58, size: 30, weight: 700, color: "#E9FBF5" }),
+    group({ x: W / 2, y: 930, scale: 0.4 + 0.6 * punch, opacity: Math.min(1, punch * 1.5) }, [
+      rect({ x: -380, y: -80, width: 760, height: 160, radius: 40, gradient: { from: "#14B88A", to: "#5B4BDB", angle: 120 }, shadow: { y: 20, blur: 60, color: "rgba(20,184,138,0.5)" } }),
+      text({ text: "23×", x: -235, y: 0, size: 110, weight: 900, color: "#FFFFFF" }),
+      text({ text: "faster than Remotion", x: 140, y: 0, size: 40, weight: 700, color: "#E9FBF5" }),
     ]),
   ];
 });
