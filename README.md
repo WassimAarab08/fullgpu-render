@@ -41,7 +41,7 @@ Every clip here is a single `.mjs` file in [`examples/`](examples/), rendered wi
 <td><img src="docs/examples/social-vertical.gif" width="220" alt="Vertical social clip with word-by-word captions"><br>
 <b><a href="examples/social-vertical.mjs">social-vertical</a></b> — 9:16 clip: full-bleed video (cropped like <code>object-fit: cover</code>), story progress bar, one-word-at-a-time captions. 300 frames in 3.1 s.</td>
 <td><b><a href="examples/app-promo.mjs">app-promo</a></b> (top of this page) — product promo: two-line headline with springs, CTA with glow, a phone rising in and a fitness app UI built from shapes (cards popping in, a step counter, animated bars). 240 frames in 3.2 s.<br><br>
-A 26-second showcase reel with three of them is attached to the <a href="https://github.com/WassimAarab08/fullgpu-render/releases/latest">latest release</a>.</td>
+<b><a href="examples/launch-video.mjs">launch-video</a></b> — the project's own 24-second launch video (4:5), which plays the other examples inside cards. 720 frames in 4.7 s. Download the MP4s from the <a href="https://github.com/WassimAarab08/fullgpu-render/releases/latest">latest release</a>.</td>
 </tr>
 </table>
 
