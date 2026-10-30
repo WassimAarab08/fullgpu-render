@@ -28,7 +28,7 @@
 
 ## Examples
 
-Every clip here is a single `.mjs` file in [`examples/`](examples/), rendered with `npm run render -- <file> <out.mp4>`.
+Every clip here is a single `.mjs` file in [`examples/`](examples/), rendered with `npx fullgpu render <file> <out.mp4>`.
 
 <table>
 <tr>
@@ -49,7 +49,7 @@ Every clip here is a single `.mjs` file in [`examples/`](examples/), rendered wi
 
 ```js
 // hello.mjs
-import { composition, rect, text, group, spring, interpolate } from "./sdk/index.mjs";
+import { composition, rect, text, group, spring, interpolate } from "fullgpu-render";
 
 export default composition({ width: 1920, height: 1080, fps: 30, durationInFrames: 90 }, ({ frame, fps }) => {
   const pop = spring({ frame, fps, config: { damping: 12 } });
@@ -65,7 +65,7 @@ export default composition({ width: 1920, height: 1080, fps: 30, durationInFrame
 ```
 
 ```bash
-npm run render -- hello.mjs out/hello.mp4
+npx fullgpu render hello.mjs hello.mp4
 ```
 
 If you know Remotion you already know the model: a composition is a function of the frame. `interpolate`,
@@ -133,16 +133,27 @@ regions, voice-over) took **~10 min** in Remotion and **43 s** in the native eng
 
 ## Quick start
 
-Requirements: an NVIDIA GPU, ffmpeg with `h264_nvenc` and `cuda` on the `PATH`, Rust 1.87+, Node 22+. Developed on
-Windows 11; the native engine should also work on Linux but is untested there.
+You need an NVIDIA GPU, ffmpeg with `h264_nvenc` and CUDA on the `PATH`, and Node 22+. **No Rust needed:** the
+first render downloads the prebuilt engine for your platform (Windows or Linux, x64) from the matching GitHub release.
+
+```bash
+npm install github:WassimAarab08/fullgpu-render
+npx fullgpu doctor                      # checks GPU, ffmpeg (NVENC + CUDA) and the engine
+npx fullgpu render hello.mjs hello.mp4  # in your compositions: import { ... } from "fullgpu-render"
+```
+
+`fullgpu render` resolves `video`, `image` and `audio` paths from the current directory (or `--media-root <dir>`).
+Set `FULLGPU_BIN` to use your own engine build.
+
+### Working on the repo
 
 ```bash
 git clone https://github.com/WassimAarab08/fullgpu-render
 cd fullgpu-render
 npm install
-npm run build        # native engine
+npm run build        # native engine (Rust 1.87+); otherwise the prebuilt one is downloaded
 npm run media        # synthetic test clips in media/ (used by the video examples)
-npm run examples     # renders the four examples into out/
+npm run examples     # renders the examples into out/
 ```
 
 ## Reproducing the benchmark

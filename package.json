@@ -1,28 +1,51 @@
 {
   "name": "fullgpu-render",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.3.0",
   "description": "Programmatic video rendering that stays on the GPU end to end (NVDEC -> wgpu/WebGPU -> NVENC)",
   "license": "MIT OR Apache-2.0",
   "repository": "github:WassimAarab08/fullgpu-render",
+  "keywords": [
+    "video",
+    "gpu",
+    "remotion",
+    "motion-graphics",
+    "wgpu",
+    "nvenc",
+    "webgpu",
+    "programmatic-video"
+  ],
   "type": "module",
+  "bin": {
+    "fullgpu": "sdk/cli.mjs"
+  },
+  "exports": {
+    ".": "./sdk/index.mjs"
+  },
+  "files": [
+    "sdk/*.mjs",
+    "!sdk/*.test.mjs",
+    "docs/logo.png",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
+    "test": "node --test sdk/cli.test.mjs sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
     "build": "cargo build --release --manifest-path native/Cargo.toml",
     "media": "bash tools/make-sample-media.sh",
-    "render": "node sdk/render.mjs",
+    "render": "node sdk/cli.mjs render",
     "examples": "node sdk/render.mjs examples/app-promo.mjs out/app-promo.mp4 && node sdk/render.mjs examples/benchmark-story.mjs out/benchmark-story.mp4 && node sdk/render.mjs examples/multilingual-titles.mjs out/multilingual-titles.mp4 && node sdk/render.mjs examples/social-vertical.mjs out/social-vertical.mp4 && node sdk/render.mjs examples/launch-video.mjs out/launch-video.mp4 && node sdk/render.mjs examples/launch-video-es.mjs out/launch-video-es.mp4",
     "layout": "node scene/scene.mjs > out/layout.json",
     "render:browser": "node browser/server.mjs --out=browser.mp4",
-    "bench": "bash tools/run-bench.sh"
+    "bench": "bash tools/run-bench.sh",
+    "doctor": "node sdk/cli.mjs doctor"
   },
   "dependencies": {
     "mediabunny": "1.62.0"
   },
-  "exports": {
-    ".": "./sdk/index.mjs"
-  }
+  "private": false
 }

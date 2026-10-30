@@ -3,6 +3,18 @@
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-30
+
+### Added
+- `fullgpu` CLI: `fullgpu render <composition.mjs> <out.mp4>`, `fullgpu doctor`, `fullgpu --version`.
+- Prebuilt engine binaries for Windows and Linux (x64) attached to each release by GitHub Actions; the CLI downloads
+  the one matching the package version, so Rust is no longer required to try it.
+- SDK: `audio` clips, `font` and `align: "left"` for text; falsy children are ignored like in React.
+- Engine: monospace and custom fonts; text stays in its family when a weight is missing (variable fonts).
+
+### Security
+- `remotion-baseline`: override `zod` to 4.6.6 (Dependabot alert, high severity).
+
 ## [0.2.0] - 2026-10-30
 
 ### Added
