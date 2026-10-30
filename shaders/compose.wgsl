@@ -7,9 +7,9 @@ struct Draw {
   quad: vec4f,   // área dibujada en px: x, y, w, h
   rect: vec4f,   // rectángulo redondeado en px: x, y, w, h
   color: vec4f,  // rgba sin premultiplicar
-  color2: vec4f, // forma: color final del degradado; vídeo: parte de la fuente mostrada (u0, v0, u1, v1)
+  color2: vec4f, // forma: color final del degradado o rectángulo recortado; vídeo: parte de la fuente mostrada (u0, v0, u1, v1)
   params: vec4f, // radio, suavizado en px, opacidad, rango completo (1) o limitado (0) del vídeo
-  extra: vec4f,  // forma: dirección del degradado (x, y) y 1 si hay degradado
+  extra: vec4f,  // forma: dirección del degradado (x, y), 1 si hay degradado o 2 si color2 es un recorte, y ancho del trazo
   canvas: vec4f, // ancho, alto del lienzo
 };
 
@@ -46,7 +46,7 @@ fn coverage(px: vec2f) -> f32 {
 
 // Color de la forma: liso o degradado lineal a lo largo de d.extra.xy (de borde a borde del rectángulo).
 fn fill(px: vec2f) -> vec4f {
-  if (d.extra.z < 0.5) {
+  if (abs(d.extra.z - 1.0) > 0.5) {
     return d.color;
   }
   let dir = d.extra.xy;
@@ -55,10 +55,25 @@ fn fill(px: vec2f) -> vec4f {
   return mix(d.color, d.color2, t);
 }
 
+// Con trazo (d.extra.w > 0) solo cuenta el anillo entre el rectángulo y el interior con el radio menos el trazo (CSS border).
+fn shape_coverage(px: vec2f) -> f32 {
+  let w = d.extra.w;
+  if (w <= 0.0) {
+    return coverage(px);
+  }
+  let s = max(d.params.y, 1.0);
+  let inner = vec4f(d.rect.xy + vec2f(w), max(d.rect.zw - vec2f(2.0 * w), vec2f(0.0)));
+  let hole = 1.0 - smoothstep(-s * 0.5, s * 0.5, sd_round_rect(px, inner, max(d.params.x - w, 0.0)));
+  return clamp(coverage(px) - hole, 0.0, 1.0);
+}
+
 @fragment
 fn fs_shape(v: VOut) -> @location(0) vec4f {
   let c = fill(v.px);
-  let a = c.a * d.params.z * coverage(v.px);
+  var a = c.a * d.params.z * shape_coverage(v.px);
+  if (d.extra.z > 1.5) {
+    a *= 1.0 - clamp(0.5 - sd_round_rect(v.px, d.color2, d.params.x), 0.0, 1.0);
+  }
   return vec4f(c.rgb * a, a);
 }
 

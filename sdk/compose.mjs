@@ -10,7 +10,10 @@ import { parseColor } from "./animation.mjs";
 
 export const composition = (config, render) => ({ fps: 30, background: "#000000", ...config, render });
 
-/** Rectángulo redondeado: { x, y, width, height, radius, color | gradient: { from, to, angle }, shadow: { y, blur, color }, opacity } */
+/**
+ * Rectángulo redondeado: { x, y, width, height, radius, color | gradient: { from, to, angle }, shadow: { y, blur, color },
+ * border: { width, color }, opacity }. Con border y sin color ni degradado solo se pinta el borde.
+ */
 export const rect = (props) => ({ type: "rect", ...props });
 /**
  * Texto centrado en (x, y): { text, x, y, size, weight, color, font, align: "center" | "left", maxWidth, anchor: "center" | "bottom",
@@ -88,6 +91,8 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
     }
     const pt = (x, y) => [ctx.tx + x * ctx.s, ctx.ty + y * ctx.s];
     const box = (n) => [...pt(n.x ?? 0, n.y ?? 0), (n.width ?? 0) * ctx.s, (n.height ?? 0) * ctx.s];
+    // Como CSS: el radio no pasa de la mitad del lado corto (si no, el SDF del motor deja de dibujar la forma).
+    const round = (n, r) => Math.min((n.radius ?? 0) * ctx.s, r[2] / 2, r[3] / 2);
     const opacity = ctx.o * (node.opacity ?? 1);
 
     switch (node.type) {
@@ -110,19 +115,26 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
     switch (node.type) {
       case "rect": {
         const r = box(node);
-        const radius = (node.radius ?? 0) * ctx.s;
+        const radius = round(node, r);
         if (node.shadow) {
           const sh = [r[0] + (node.shadow.x ?? 0) * ctx.s, r[1] + (node.shadow.y ?? 0) * ctx.s, r[2], r[3]];
           const m = (node.shadow.blur ?? 0) * ctx.s;
-          draws.push({ kind: "shape", rect: sh, quad: [sh[0] - m, sh[1] - m, sh[2] + 2 * m, sh[3] + 2 * m], radius, softness: Math.max(1, m), color: rgba(node.shadow.color ?? "rgba(0,0,0,0.3)"), opacity });
+          const quad = [sh[0] - m, sh[1] - m, sh[2] + 2 * m, sh[3] + 2 * m];
+          // Como CSS, la sombra no se ve debajo de la caja (importa con fondos translúcidos).
+          draws.push({ kind: "shape", rect: sh, quad, radius, softness: Math.max(1, m), color: rgba(node.shadow.color ?? "rgba(0,0,0,0.3)"), opacity, cutout: r });
         }
-        const d = { kind: "shape", rect: r, quad: r, radius, softness: 1, color: rgba(node.gradient?.from ?? node.color ?? "#ffffff"), opacity };
-        if (node.gradient) {
-          // Ángulo CSS: 0deg hacia arriba, 90deg hacia la derecha.
-          const a = ((node.gradient.angle ?? 180) * Math.PI) / 180;
-          d.gradient = { to: rgba(node.gradient.to), dir: [Math.sin(a), -Math.cos(a)] };
+        if (!node.border || node.color || node.gradient) {
+          const d = { kind: "shape", rect: r, quad: r, radius, softness: 1, color: rgba(node.gradient?.from ?? node.color ?? "#ffffff"), opacity };
+          if (node.gradient) {
+            // Ángulo CSS: 0deg hacia arriba, 90deg hacia la derecha.
+            const a = ((node.gradient.angle ?? 180) * Math.PI) / 180;
+            d.gradient = { to: rgba(node.gradient.to), dir: [Math.sin(a), -Math.cos(a)] };
+          }
+          draws.push(d);
         }
-        draws.push(d);
+        if (node.border?.width > 0) {
+          draws.push({ kind: "shape", rect: r, quad: r, radius, softness: 1, color: rgba(node.border.color ?? "#000000"), opacity, stroke: node.border.width * ctx.s });
+        }
         return;
       }
       case "text": {
@@ -152,7 +164,8 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
         return;
       }
       case "image": {
-        draws.push({ kind: "image", id: imageId(node.src), quad: box(node), radius: (node.radius ?? 0) * ctx.s, opacity });
+        const q = box(node);
+        draws.push({ kind: "image", id: imageId(node.src), quad: q, radius: round(node, q), opacity });
         return;
       }
       case "video": {
@@ -187,7 +200,7 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
           s.w = even(w);
           s.h = even((s.w * src.h) / src.w);
         }
-        draws.push({ kind: "video", source: s.id, rect: r, quad: r, radius: (node.radius ?? 0) * ctx.s, softness: 1, opacity, uv });
+        draws.push({ kind: "video", source: s.id, rect: r, quad: r, radius: round(node, r), softness: 1, opacity, uv });
         return;
       }
       default:

@@ -75,6 +75,10 @@ class TextCache {
 
 function normalize(style = {}, tag) {
   const out = { ...UA[tag] };
+  // Un atajo del autor (margin: 0) anula los longhands de la hoja del navegador (marginTop de h1).
+  for (const k of ["margin", "padding"]) {
+    if (style[k] != null) for (const side of ["Top", "Right", "Bottom", "Left"]) delete out[k + side];
+  }
   for (const [k, v] of Object.entries(style)) {
     if (v == null) continue;
     if (k === "font") Object.assign(out, css.font(v));
@@ -376,22 +380,13 @@ function paint(b, W, H, radius, warn) {
   } catch (e) {
     warn(`border: ${e.message}`);
   }
-  const sh = shadow && { x: shadow.x, y: shadow.y, blur: shadow.blur, color: shadow.color };
-  const rect = (x, y, w, h, r, fill, withShadow) => ({ type: "rect", x, y, width: w, height: h, radius: r, ...fill, ...(withShadow && sh ? { shadow: sh } : {}) });
-  if (border && bg) {
-    out.push(rect(0, 0, W, H, radius, { color: border.color }, true));
-    const k = border.width;
-    out.push(rect(k, k, W - 2 * k, H - 2 * k, Math.max(0, radius - k), bg, false));
-  } else if (border) {
-    if (radius > 0) warn("a rounded border without a background is drawn with square corners");
-    const k = border.width;
-    const c = { color: border.color };
-    out.push(rect(0, 0, W, k, 0, c), rect(0, H - k, W, k, 0, c), rect(0, k, k, H - 2 * k, 0, c), rect(W - k, k, k, H - 2 * k, 0, c));
-  } else if (bg) {
-    out.push(rect(0, 0, W, H, radius, bg, true));
-  } else if (shadow) {
-    warn("boxShadow on an element without a background is not supported");
-  }
+  if (!bg && !border && !shadow) return out;
+  // El fondo ocupa la caja del borde (background-clip: border-box) y el borde es un trazo encima, como en CSS. La sombra
+  // se recorta bajo la caja, así que también vale sin fondo.
+  const node = { type: "rect", x: 0, y: 0, width: W, height: H, radius: Math.min(radius, W / 2, H / 2), ...(bg ?? (border ? {} : { color: "transparent" })) };
+  if (shadow) node.shadow = { x: shadow.x, y: shadow.y, blur: shadow.blur, color: shadow.color };
+  if (border) node.border = border;
+  out.push(node);
   return out;
 }
 

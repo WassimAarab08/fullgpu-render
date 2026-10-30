@@ -148,10 +148,19 @@ test("lo que el motor no sabe pintar avisa y sigue sin ese efecto", async () => 
   assert.match(warnings[0], /rotate/);
 });
 
-test("borde sin radio: cuatro lados; con fondo y radio: caja del borde y fondo dentro", async () => {
-  const sides = await draw(h("div", { style: { position: "absolute", left: 0, top: 0, width: 100, height: 50, border: "2px solid #fff" } }));
-  assert.deepEqual(sides.map((r) => [r.x, r.y, r.width, r.height]), [[0, 0, 100, 2], [0, 48, 100, 2], [0, 2, 2, 46], [98, 2, 2, 46]]);
-  const [outer, inner] = await draw(h("div", { style: { position: "absolute", left: 0, top: 0, width: 100, height: 50, borderRadius: 10, border: "2px solid #fff", background: "#000" } }));
-  assert.deepEqual([outer.color, outer.width, outer.radius], ["#fff", 100, 10]);
-  assert.deepEqual([inner.color, inner.x, inner.y, inner.width, inner.height, inner.radius], ["#000", 2, 2, 96, 46, 8]);
+test("border: un rect con trazo (con o sin fondo) y radio recortado a la mitad de la caja", async () => {
+  const [line] = await draw(h("div", { style: { position: "absolute", left: 0, top: 0, width: 100, height: 50, border: "2px solid #fff" } }));
+  assert.deepEqual([line.x, line.y, line.width, line.height, line.color, line.border], [0, 0, 100, 50, undefined, { width: 2, color: "#fff" }]);
+  const [card] = await draw(h("div", { style: { position: "absolute", left: 0, top: 0, width: 100, height: 50, borderRadius: 999, border: "2px solid #fff", background: "#000" } }));
+  assert.deepEqual([card.color, card.radius, card.border], ["#000", 25, { width: 2, color: "#fff" }]);
+});
+
+test("h1 lleva los márgenes del navegador, pero margin: 0 del autor los anula", async () => {
+  const col = (h1Style) => h("div", { style: { position: "absolute", left: 0, top: 0, width: 500 } }, h("h1", { style: { fontSize: 40, lineHeight: "50px", ...h1Style } }, "T"), h("div", { style: { height: 10, background: "red" } }));
+  const [t1, r1] = await draw(col({}));
+  near(t1.y, 40 * 0.67 + 25, "h1 con margen por defecto");
+  near(r1.y, 40 * 0.67 * 2 + 50, "el bloque siguiente baja");
+  const [t2, r2] = await draw(col({ margin: 0 }));
+  near(t2.y, 25, "sin margen");
+  near(r2.y, 50, "pegado al h1");
 });

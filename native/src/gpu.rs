@@ -248,12 +248,17 @@ impl Compositor {
         let samp = wgpu::BindingResource::Sampler(&self.sampler);
         for d in draws {
             match d {
-                Draw::Shape { quad, rect, radius, softness, color, opacity, gradient } => {
+                Draw::Shape { quad, rect, radius, softness, color, opacity, gradient, stroke, cutout } => {
                     let i = uniforms.len() as u64;
                     let mut u = DrawUniform::new(*quad, *rect, *color, [*radius, *softness, *opacity, 0.0], canvas);
                     if let Some(g) = gradient {
                         u.color2 = g.to;
                         u.extra = [g.dir[0], g.dir[1], 1.0, 0.0];
+                    }
+                    u.extra[3] = *stroke;
+                    if let Some(c) = cutout {
+                        u.color2 = *c;
+                        u.extra[2] = 2.0;
                     }
                     uniforms.push(u);
                     groups.push((&self.shape, self.bind(&self.shape, i, &[])));
@@ -410,6 +415,8 @@ mod tests {
             color: [0.0, 0.0, 0.0, 1.0],
             opacity: 1.0,
             gradient: None,
+            stroke: 0.0,
+            cutout: None,
         };
         c.render(&[black], 0);
         let nv12 = c.read(0).unwrap();
@@ -419,6 +426,51 @@ mod tests {
         assert!((y(4, 4) - 16).abs() <= 1, "negro Y={}", y(4, 4));
         let uv = &nv12[64 * 32..];
         assert!((uv[2 * 2] as i32 - 128).abs() <= 1, "negro sin croma");
+    }
+
+    #[test]
+    #[ignore = "necesita una GPU NVIDIA"]
+    fn stroke_pinta_solo_el_borde_de_la_forma() {
+        let mut c = Compositor::new(64, 32, "#F4F1EC").unwrap();
+        let ring = Draw::Shape {
+            quad: [8.0, 8.0, 16.0, 16.0],
+            rect: [8.0, 8.0, 16.0, 16.0],
+            radius: 4.0,
+            softness: 1.0,
+            color: [0.0, 0.0, 0.0, 1.0],
+            opacity: 1.0,
+            gradient: None,
+            stroke: 3.0,
+            cutout: None,
+        };
+        c.render(&[ring], 0);
+        let nv12 = c.read(0).unwrap();
+        let y = |x: usize, yy: usize| nv12[yy * 64 + x] as i32;
+        assert!((y(9, 16) - 16).abs() <= 2, "borde izquierdo negro Y={}", y(9, 16));
+        assert!((y(16, 16) - 223).abs() <= 1, "dentro se ve el fondo Y={}", y(16, 16));
+        assert!((y(40, 16) - 223).abs() <= 1, "fuera, fondo Y={}", y(40, 16));
+    }
+
+    #[test]
+    #[ignore = "necesita una GPU NVIDIA"]
+    fn cutout_deja_ver_el_fondo_dentro_de_la_caja_de_la_sombra() {
+        let mut c = Compositor::new(64, 32, "#F4F1EC").unwrap();
+        let shadow = Draw::Shape {
+            quad: [0.0, 0.0, 32.0, 32.0],
+            rect: [4.0, 4.0, 24.0, 24.0],
+            radius: 0.0,
+            softness: 1.0,
+            color: [0.0, 0.0, 0.0, 1.0],
+            opacity: 1.0,
+            gradient: None,
+            stroke: 0.0,
+            cutout: Some([12.0, 12.0, 8.0, 8.0]),
+        };
+        c.render(&[shadow], 0);
+        let nv12 = c.read(0).unwrap();
+        let y = |x: usize, yy: usize| nv12[yy * 64 + x] as i32;
+        assert!((y(6, 6) - 16).abs() <= 2, "sombra Y={}", y(6, 6));
+        assert!((y(16, 16) - 223).abs() <= 1, "recortada Y={}", y(16, 16));
     }
 
     #[test]
@@ -459,6 +511,8 @@ mod tests {
             color: [0.0, 0.0, 0.0, 1.0],
             opacity: 1.0,
             gradient: Some(crate::layout::Gradient { to: [1.0, 1.0, 1.0, 1.0], dir: [1.0, 0.0] }),
+            stroke: 0.0,
+            cutout: None,
         };
         c.render(&[g], 0);
         let nv12 = c.read(0).unwrap();

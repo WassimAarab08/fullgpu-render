@@ -23,6 +23,7 @@ test("rect: color CSS, radio, sombra debajo y degradado con ángulo CSS", async 
   assert.deepEqual(box.color, [1, 0, 0, 1]);
   assert.equal(box.radius, 8);
   assert.deepEqual(shadow.rect, [10, 30, 50, 30]);
+  assert.deepEqual(shadow.cutout, [10, 20, 50, 30], "como CSS, la sombra no se ve debajo de la caja");
   assert.equal(shadow.softness, 20);
   assert.deepEqual(shadow.color, [0, 0, 0, 0.5]);
   const [g] = await draws(() => rect({ x: 0, y: 0, width: 10, height: 10, gradient: { from: "#000", to: "#fff", angle: 90 } }));
@@ -140,4 +141,17 @@ test("video con fit contain: encaja la fuente sin recortar, centrada en su caja"
 test("render puede ser asíncrono (la capa React calcula el layout así)", async () => {
   const [r] = await draws(async ({ frame }) => rect({ x: frame, y: 0, width: 1, height: 1 }), 3);
   assert.deepEqual(r.rect, [3, 0, 1, 1]);
+});
+
+test("rect: el radio no pasa de la mitad del lado corto (como CSS)", async () => {
+  const [r] = await draws(() => rect({ x: 0, y: 0, width: 100, height: 20, radius: 999, color: "#000" }));
+  assert.equal(r.radius, 10);
+});
+
+test("rect: border dibuja un trazo encima del relleno; sin color ni degradado solo el trazo", async () => {
+  const [fill, ring] = await draws(() => rect({ x: 0, y: 0, width: 50, height: 30, radius: 8, color: "rgba(255,255,255,0.1)", border: { width: 2, color: "#ffffff" } }));
+  assert.deepEqual([fill.stroke, fill.color[3]], [undefined, 0.1]);
+  assert.deepEqual([ring.kind, ring.rect, ring.radius, ring.stroke, ring.color], ["shape", [0, 0, 50, 30], 8, 2, [1, 1, 1, 1]]);
+  const only = await draws(() => rect({ x: 0, y: 0, width: 50, height: 30, border: { width: 1, color: "#000" } }));
+  assert.deepEqual(only.map((d) => d.stroke), [1]);
 });

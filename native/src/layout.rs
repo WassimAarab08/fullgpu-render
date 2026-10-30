@@ -139,6 +139,12 @@ pub enum Draw {
         opacity: f32,
         #[serde(default)]
         gradient: Option<Gradient>,
+        /// Ancho del trazo en px: si es mayor que 0 solo se pinta el borde (como CSS border), no el relleno.
+        #[serde(default)]
+        stroke: f32,
+        /// Rectángulo (x, y, w, h, con el mismo radio) que se recorta de la forma: una sombra no se ve debajo de su caja.
+        #[serde(default)]
+        cutout: Option<[f32; 4]>,
     },
     /// `uv`: parte de la fuente que se muestra (u0, v0, u1, v1), para recortar como `object-fit: cover`.
     Video {
@@ -234,7 +240,7 @@ mod tests {
           "frames": [ { "draws": [
             { "kind": "shape", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "color": [0,0,0,1], "opacity": 1,
               "gradient": { "to": [1,1,1,1], "dir": [1,0] } },
-            { "kind": "shape", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "color": [0,0,0,1], "opacity": 1 },
+            { "kind": "shape", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "color": [0,0,0,1], "opacity": 1, "stroke": 2, "cutout": [1,1,6,6] },
             { "kind": "video", "source": "v", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "opacity": 1, "uv": [0.5,0,1,1] },
             { "kind": "video", "source": "v", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "opacity": 1 },
             { "kind": "text", "id": "t", "cx": 1, "cy": 1, "opacity": 1, "scale": 1.5 },
@@ -246,7 +252,10 @@ mod tests {
         assert_eq!(l.images[0].file, "docs/logo.png");
         let d = &l.frames[0].draws;
         assert!(matches!(&d[0], Draw::Shape { gradient: Some(g), .. } if g.dir == [1.0, 0.0] && g.to[0] == 1.0));
-        assert!(matches!(&d[1], Draw::Shape { gradient: None, .. }));
+        assert!(matches!(&d[0], Draw::Shape { stroke, .. } if *stroke == 0.0), "sin stroke es un relleno");
+        assert!(matches!(&d[1], Draw::Shape { gradient: None, stroke, .. } if *stroke == 2.0));
+        assert!(matches!(&d[1], Draw::Shape { cutout: Some(c), .. } if *c == [1.0, 1.0, 6.0, 6.0]));
+        assert!(matches!(&d[0], Draw::Shape { cutout: None, .. }));
         assert!(matches!(&d[2], Draw::Video { uv, .. } if *uv == [0.5, 0.0, 1.0, 1.0]));
         assert!(matches!(&d[3], Draw::Video { uv, .. } if *uv == [0.0, 0.0, 1.0, 1.0]));
         assert!(matches!(&d[4], Draw::Text { scale, .. } if *scale == 1.5));
