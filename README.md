@@ -22,7 +22,8 @@
   <img src="docs/examples/app-promo.gif" width="560" alt="App promo rendered with fullgpu-render: kinetic headline, a phone springing in and a live fitness UI">
 </p>
 
-<p align="center"><b>23× faster than Remotion</b> on the same scene and laptop · every example below renders in 2–4 seconds</p>
+<p align="center"><b>23× faster than Remotion</b> on the same scene and laptop · every example below renders in 2–4 seconds<br>
+New in 0.4: <a href="#bring-your-remotion-components">render your Remotion components as they are</a> (early)</p>
 
 ---
 
@@ -74,12 +75,53 @@ them value by value against Remotion's own output. The implementation is written
 
 | Building block | What it does |
 |---|---|
-| `rect` | Rounded rectangle with solid color or linear gradient (CSS angles) and a soft drop shadow |
+| `rect` | Rounded rectangle with solid color or linear gradient (CSS angles), border and a soft drop shadow |
 | `text` | Shaped text (bidi, Arabic, CJK, fallback fonts), weight, wrapping, pill background, scale |
 | `image` | PNG/JPEG/WebP with rounded corners |
 | `video` | Clip with `from`, `durationInFrames`, `startFrom`, `playbackRate` and `fit: "cover"` cropping, decoded by NVDEC |
 | `group` | Translate, scale and fade a subtree |
 | `sequence` | Time-shifted subtree, like Remotion's `<Sequence>` |
+
+## Bring your Remotion components
+
+Point the CLI at a Remotion entry file and a composition id. The same `.tsx` that `npx remotion render` uses:
+
+```bash
+npx fullgpu render src/index.tsx MyComposition out.mp4 --public-dir public --props '{"title":"Hello"}'
+```
+
+<p align="center">
+  <img src="docs/examples/remotion-project.gif" width="560" alt="A Remotion project rendered by fullgpu-render: spring title, cards in a flex row, captions in a Series">
+</p>
+
+There is no browser involved. `react`, `remotion` and `@remotion/media` are mapped at bundle time (esbuild) to a small
+runtime that evaluates your components once per frame, lays the result out with flexbox
+([Yoga](https://github.com/facebook/yoga)), measures text with the same font engine that draws it, and hands the
+native engine a draw list.
+
+How close it gets, measured with SSIM against Remotion 4.0.539 stills of the same frames (1.0 = identical):
+
+| Project (unmodified) | Frames compared | SSIM vs Remotion |
+|---|---|---:|
+| [`remotion-baseline/src/index.tsx`](remotion-baseline/src/index.tsx): the benchmark scene, two videos in device frames, shadows, CJK title | 30, 450, 1350 | 0.987 – 0.989 |
+| [`examples/remotion-project`](examples/remotion-project/src/index.tsx): spring title, flex row of cards with borders and shadows, `Img`, `Series` captions | 12, 75, 130 | 0.989 – 0.992 |
+
+The remaining differences are anti-aliasing and font fallback: for CJK in a CSS font list, Chrome picks the next
+family in the list (Microsoft YaHei) while the engine uses its own fallback.
+
+**Supported:** `AbsoluteFill`, `Sequence`, `Series`, `Loop`, `Freeze`, `Img`, `Video` / `OffthreadVideo` and
+`@remotion/media` `Video` (`trimBefore`, `trimAfter`, `playbackRate`, `objectFit`), `Audio` from one file,
+`staticFile`, `Composition` with `defaultProps` and `calculateMetadata`, `useCurrentFrame`, `useVideoConfig`,
+`interpolate`, `spring`, `Easing`, `interpolateColors`, `random`; React hooks, context, `memo`, `forwardRef`.
+CSS: block and flex layout (direction, wrap, justify, align, gap, grow/shrink/basis), absolute positioning, margin,
+padding, width/height in px, %, em and rem, colors (hex, rgb, hsl, names), `linear-gradient`, `borderRadius`,
+`border`, `boxShadow`, `opacity`, `transform` with `translate` and `scale`, fonts (`font` shorthand, family lists,
+weight, size, line height, `textAlign`, `textTransform`, `whiteSpace`) and `overflow: hidden` rounding children that
+fill the box.
+
+**Not yet:** SVG, `<canvas>`, rotation, `filter`/blur, masks, per-span text styles inside one paragraph, italic,
+`letterSpacing`, the audio track of a `<Video>`, `volume`, more than one audio file, and other `@remotion/*` packages.
+Anything unsupported is reported once as a warning and skipped, so the render still finishes.
 
 ## What it improves
 
@@ -183,14 +225,16 @@ npm run bench                                   # ~20 min, results in out/bench/
 
 ## Status and roadmap
 
-Early preview: the API may change. Today it covers shapes, gradients, shadows, text, images, video and sequences.
-It does not run arbitrary HTML/CSS.
+Early preview: the API may change. Today it covers shapes, gradients, borders, shadows, text, images, video and
+sequences, from the SDK or from Remotion components. It does not run arbitrary HTML/CSS (see
+[what is supported](#bring-your-remotion-components)).
 
 - [x] Remotion-compatible animation core (`interpolate`, `spring`, `Easing`, `interpolateColors`)
 - [x] Composition SDK: `rect`, `text`, `image`, `video`, `group`, `sequence`
 - [x] Native engine with NVDEC/NVENC, gradients, `object-fit: cover`, voice-over mixing
-- [ ] JSX/React components on top of the SDK (`<AbsoluteFill>`, `<Sequence>`, `useCurrentFrame()`)
-- [ ] Flexbox layout and text alignment
+- [x] Remotion components rendered as they are (`<AbsoluteFill>`, `<Sequence>`, `useCurrentFrame()`...)
+- [x] Flexbox layout (Yoga), CSS borders, text alignment and line height
+- [ ] SVG, per-span text styles, the audio track of `<Video>`
 - [ ] Rotation, masks, blur and blend modes
 - [ ] Streaming draw lists from Node to Rust and parallel segment rendering
 - [ ] Zero-copy decode/encode (CUDA/D3D12↔Vulkan external memory)

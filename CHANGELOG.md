@@ -3,6 +3,20 @@
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-10-30
+
+### Added
+- Remotion components rendered without a browser: `fullgpu render src/index.tsx <CompositionId> out.mp4`
+  (`--props`, `--public-dir`). `react`, `remotion` and `@remotion/media` map to an own runtime that evaluates each
+  frame purely; layout uses Yoga flexbox and text is measured by the engine. SSIM 0.987-0.992 against Remotion on the
+  benchmark project and the new `examples/remotion-project`.
+- Engine: `--measure` mode, CSS line height, `textAlign` for wrapped lines, CSS font-family lists, stroked shapes
+  (CSS borders), shadows clipped under their box, up to 512 draws per frame.
+- SDK: `rect` `border` and `shadow.clip`, `video` `fit: "contain"`, text `lineHeight` and `textAlign`, async `render`.
+
+### Changed
+- Border radius is clamped to half of the shorter side, like CSS (a larger radius used to hide the shape).
+
 ## [0.3.0] - 2026-10-30
 
 ### Added
