@@ -1,0 +1,19 @@
+name: Feature request
+description: A new primitive, codec path, platform or tooling idea
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: perf
+    attributes:
+      label: Expected impact on the GPU pipeline
+      description: Does it keep frames on the GPU? Does it add a CPU round trip?

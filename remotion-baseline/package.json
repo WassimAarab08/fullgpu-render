@@ -1,0 +1,15 @@
+{
+  "name": "remotion-baseline",
+  "private": true,
+  "description": "Baseline: the same benchmark scene rendered with Remotion",
+  "scripts": {
+    "render": "remotion render src/index.tsx Bench ../out/remotion.mp4 --public-dir=../media --codec=h264 --crf=20 --gl=angle --concurrency=8"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/media": "4.0.539",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.539"
+  }
+}

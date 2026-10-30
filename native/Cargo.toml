@@ -1,0 +1,23 @@
+[package]
+name = "fullgpu-render"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.87"
+resolver = "3"
+description = "Programmatic video rendering that stays on the GPU end to end: NVDEC -> wgpu -> NVENC"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/WassimAarab08/fullgpu-render"
+keywords = ["video", "wgpu", "nvenc", "gpu", "rendering"]
+categories = ["multimedia::video", "rendering"]
+
+[dependencies]
+wgpu = "30.0.1"
+pollster = "0.4"
+bytemuck = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cosmic-text = "0.17.0"
+anyhow = "1"
+
+[profile.release]
+debug = false

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JS tests (scene, bench, server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  rust:
+    name: Rust build & tests (MSRV 1.87)
+    # Windows: the text tests need system fonts with Arabic and CJK coverage (Segoe UI, Microsoft YaHei).
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.87
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+      - run: cargo build --release --locked
+      # GPU/ffprobe tests are #[ignore]d here; run them locally with `cargo test -- --include-ignored`.
+      - run: cargo test --release --locked
+      - name: clippy (advisory)
+        run: cargo clippy --release --all-targets
+        continue-on-error: true
+      - name: rustfmt (advisory)
+        run: cargo fmt --check
+        continue-on-error: true

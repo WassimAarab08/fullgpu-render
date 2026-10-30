@@ -1,0 +1,37 @@
+name: Bug report
+description: Something renders wrong, crashes, or is slower than expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you ran, what you expected and what you got.
+    validations:
+      required: true
+  - type: dropdown
+    id: engine
+    attributes:
+      label: Engine
+      options:
+        - native (Rust + wgpu)
+        - browser (WebGPU + WebCodecs)
+        - benchmark tooling
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU(s) and driver
+      placeholder: "RTX 4050 Laptop (driver 617.42) + Intel UHD, Optimus"
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: OS, ffmpeg, Chrome, Rust and Node versions
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / metrics JSON
+      render: shell
