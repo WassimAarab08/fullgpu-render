@@ -1,0 +1,10 @@
+{
+  "name": "fullgpu-render",
+  "version": "0.5.0",
+  "description": "Make, check and render videos in code (SDK or Remotion components) on an NVIDIA GPU, with stills to review each step",
+  "author": { "name": "WassimAarab08" },
+  "homepage": "https://github.com/WassimAarab08/fullgpu-render",
+  "repository": "https://github.com/WassimAarab08/fullgpu-render",
+  "license": "MIT OR Apache-2.0",
+  "keywords": ["video", "gpu", "remotion", "nvenc", "motion-graphics"]
+}

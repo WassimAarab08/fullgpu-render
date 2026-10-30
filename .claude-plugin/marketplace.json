@@ -1,0 +1,16 @@
+{
+  "name": "fullgpu-render",
+  "owner": {
+    "name": "WassimAarab08"
+  },
+  "metadata": {
+    "description": "Skills for making videos with fullgpu-render, the GPU-only programmatic video renderer"
+  },
+  "plugins": [
+    {
+      "name": "fullgpu-render",
+      "source": "./",
+      "description": "Make, check and render videos in code (SDK or Remotion components) on an NVIDIA GPU, with stills to review each step"
+    }
+  ]
+}
