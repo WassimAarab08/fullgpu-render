@@ -12,12 +12,14 @@ export const composition = (config, render) => ({ fps: 30, background: "#000000"
 
 /** Rectángulo redondeado: { x, y, width, height, radius, color | gradient: { from, to, angle }, shadow: { y, blur, color }, opacity } */
 export const rect = (props) => ({ type: "rect", ...props });
-/** Texto centrado en (x, y): { text, x, y, size, weight, color, maxWidth, anchor: "center" | "bottom", background, scale, opacity } */
+/** Texto centrado en (x, y): { text, x, y, size, weight, color, font, align: "center" | "left", maxWidth, anchor: "center" | "bottom", background, scale, opacity } */
 export const text = (props) => ({ type: "text", ...props });
 /** Imagen: { src, x, y, width, height, radius, opacity } */
 export const image = (props) => ({ type: "image", ...props });
 /** Vídeo: { src, x, y, width, height, radius, from, durationInFrames, startFrom (s), playbackRate, fit: "cover" | "fill", opacity } */
 export const video = (props) => ({ type: "video", ...props });
+/** Audio: { src, from, startFrom (s), durationInSeconds }. Por ahora todos los clips deben salir del mismo archivo. */
+export const audio = (props) => ({ type: "audio", ...props });
 /** Grupo: desplaza ({ x, y }), escala desde su origen ({ scale }) y multiplica la opacidad de sus hijos. */
 export const group = (props, children) => ({ type: "group", ...props, children });
 /** Tramo de tiempo: `render(frameLocal)` solo se llama entre `from` y `from + durationInFrames`. */
@@ -48,6 +50,7 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
   const imageIds = new Map();
   const streams = new Map();
   const sizes = new Map();
+  const clips = new Map();
 
   const textId = (spec) => {
     const key = JSON.stringify(spec);
@@ -75,7 +78,7 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
   }
 
   async function walk(node, ctx, draws) {
-    if (node === null || node === undefined || node === false) return;
+    if (!node) return; // como React: "", 0, false, null y undefined no pintan nada
     if (Array.isArray(node)) {
       for (const n of node) await walk(n, ctx, draws);
       return;
@@ -122,14 +125,25 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
       case "text": {
         const spec = { text: String(node.text), fontSize: node.size ?? 48, color: hex(node.color ?? "#ffffff"), weight: node.weight ?? 600 };
         if (node.maxWidth) spec.maxWidth = node.maxWidth;
+        if (node.font) spec.font = node.font;
         const [cx, cy] = pt(node.x ?? 0, node.y ?? 0);
         const d = { kind: "text", id: textId(spec), cx, cy, opacity, scale: (node.scale ?? 1) * ctx.s };
         if (node.anchor === "bottom") d.anchorBottom = true;
+        if (node.align === "left") d.align = "left";
         if (node.background) {
           const b = node.background;
           d.bg = { color: rgba(b.color ?? "#000000"), padX: (b.padX ?? 0) * ctx.s, padY: (b.padY ?? 0) * ctx.s, radius: (b.radius ?? 0) * ctx.s };
         }
         draws.push(d);
+        return;
+      }
+      case "audio": {
+        const from = ctx.start + (node.from ?? 0);
+        const startFrom = node.startFrom ?? 0;
+        const key = `${node.src}|${from}|${startFrom}`;
+        if (!clips.has(key)) {
+          clips.set(key, { src: node.src, fromSec: from / fps, srcStartSec: startFrom, durationSec: node.durationInSeconds ?? (ctx.end - from) / fps });
+        }
         return;
       }
       case "image": {
@@ -172,10 +186,12 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
     }
   }
 
+  const files = new Set([...clips.values()].map((c) => c.src));
+  if (files.size > 1) throw new Error(`el motor mezcla audio de un solo archivo por ahora (hay ${files.size})`);
   return {
     scene: { width, height, fps, background: hex(background), texts },
     streams: [...streams.values()].map(({ srcW, srcH, ...s }) => s),
-    audio: null,
+    audio: files.size ? { file: [...files][0], clips: [...clips.values()].map(({ src, ...c }) => c) } : null,
     images,
     frames,
   };

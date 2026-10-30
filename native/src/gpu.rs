@@ -268,13 +268,14 @@ impl Compositor {
                     let extra = [(1, samp.clone()), (4, wgpu::BindingResource::TextureView(y_plane)), (5, wgpu::BindingResource::TextureView(uv_plane))];
                     groups.push((&self.video, self.bind(&self.video, i, &extra)));
                 }
-                Draw::Text { id, cx, cy, opacity, bg, anchor_bottom, scale } => {
+                Draw::Text { id, cx, cy, opacity, bg, anchor_bottom, scale, align_left } => {
                     let (w, h, view) = &self.texts[id];
                     let (w, h) = (*w as f32 * scale, *h as f32 * scale);
                     let pad_y = bg.as_ref().map_or(0.0, |b| b.pad_y);
                     // anchor_bottom: `cy` es el borde inferior (de la píldora si la hay), no el centro.
                     let ty = if *anchor_bottom { cy - pad_y - h / 2.0 } else { *cy };
-                    let quad = [cx - w / 2.0, ty - h / 2.0, w, h];
+                    let x0 = if *align_left { *cx } else { cx - w / 2.0 };
+                    let quad = [x0, ty - h / 2.0, w, h];
                     if let Some(b) = bg {
                         let i = uniforms.len() as u64;
                         let pill = [quad[0] - b.pad_x, quad[1] - b.pad_y, w + 2.0 * b.pad_x, h + 2.0 * b.pad_y];
@@ -433,6 +434,7 @@ mod tests {
             bg: Some(crate::layout::TextBg { color: [0.0, 0.0, 0.0, 1.0], pad_x: 4.0, pad_y: 4.0, radius: 0.0 }),
             anchor_bottom: true,
             scale: 1.0,
+            align_left: false,
         };
         c.render(&[pill], 0);
         let nv12 = c.read(0).unwrap();
@@ -500,12 +502,24 @@ mod tests {
         let mut c = Compositor::new(64, 32, "#000000").unwrap();
         c.add_text("t", &TextImage { w: 8, h: 8, rgba: vec![255; 8 * 8 * 4] });
         c.add_image("img", &TextImage { w: 8, h: 8, rgba: vec![255; 8 * 8 * 4] });
-        let text = Draw::Text { id: "t".into(), cx: 16.0, cy: 16.0, opacity: 1.0, bg: None, anchor_bottom: false, scale: 2.0 };
+        let text = Draw::Text { id: "t".into(), cx: 16.0, cy: 16.0, opacity: 1.0, bg: None, anchor_bottom: false, scale: 2.0, align_left: false };
         let img = Draw::Image { id: "img".into(), quad: [40.0, 4.0, 24.0, 24.0], radius: 12.0, opacity: 1.0 };
         c.render(&[text, img], 0);
         let out = c.read(0).unwrap();
         assert!(luma(&out, 64, 10, 16) > 220, "escala 2: el cuadrado de 8 px cubre 16 px");
         assert!(luma(&out, 64, 52, 16) > 220, "centro de la imagen visible");
         assert!(luma(&out, 64, 41, 5) < 40, "esquina recortada por el radio");
+    }
+
+    #[test]
+    #[ignore = "necesita una GPU NVIDIA"]
+    fn el_texto_alineado_a_la_izquierda_empieza_en_cx() {
+        let mut c = Compositor::new(64, 32, "#000000").unwrap();
+        c.add_text("t", &TextImage { w: 8, h: 8, rgba: vec![255; 8 * 8 * 4] });
+        let left = Draw::Text { id: "t".into(), cx: 40.0, cy: 16.0, opacity: 1.0, bg: None, anchor_bottom: false, scale: 1.0, align_left: true };
+        c.render(&[left], 0);
+        let out = c.read(0).unwrap();
+        assert!(luma(&out, 64, 44, 16) > 220, "cubre de x=40 a x=48");
+        assert!(luma(&out, 64, 37, 16) < 40, "no se extiende a la izquierda de cx");
     }
 }

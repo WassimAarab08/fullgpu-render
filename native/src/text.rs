@@ -21,10 +21,15 @@ impl TextRasterizer {
 
     /// `max_width`: si el texto no cabe, se parte en líneas centradas de ese ancho (subtítulos).
     pub fn raster(&mut self, text: &str, size: f32, color: [f32; 4], weight: u16, max_width: Option<f32>) -> TextImage {
+        self.raster_with(text, size, color, weight, max_width, None)
+    }
+
+    /// Como `raster`, con otra familia tipográfica (si no existe, cosmic-text usa una de reserva).
+    pub fn raster_with(&mut self, text: &str, size: f32, color: [f32; 4], weight: u16, max_width: Option<f32>, family: Option<&str>) -> TextImage {
         const PAD: i32 = 8;
         let line_h = (size * if max_width.is_some() { 1.3 } else { 1.6 }).ceil();
         let mut buf = Buffer::new(&mut self.fonts, Metrics::new(size, line_h));
-        let attrs = Attrs::new().family(Family::Name("Segoe UI")).weight(Weight(weight));
+        let attrs = Attrs::new().family(Family::Name(family.unwrap_or("Segoe UI"))).weight(Weight(weight));
         buf.set_size(&mut self.fonts, None, None);
         buf.set_text(&mut self.fonts, text, &attrs, Shaping::Advanced, None);
         buf.shape_until_scroll(&mut self.fonts, false);
@@ -101,5 +106,16 @@ mod tests {
         assert!(wrapped.h >= 3 * (36.0f32 * 1.25) as u32, "alto {}", wrapped.h);
         let short = t.raster("Hola", 36.0, [1.0; 4], 700, Some(600.0));
         assert!(short.w < 200, "un texto corto no ocupa el ancho máximo ({})", short.w);
+    }
+
+    #[test]
+    fn con_fuente_monoespaciada_todas_las_letras_ocupan_lo_mismo() {
+        let mut t = TextRasterizer::new();
+        let narrow = t.raster_with("iiiiiiii", 32.0, [1.0; 4], 400, None, Some("Consolas"));
+        let wide = t.raster_with("MMMMMMMM", 32.0, [1.0; 4], 400, None, Some("Consolas"));
+        assert!((narrow.w as i32 - wide.w as i32).abs() <= 2, "{} vs {}", narrow.w, wide.w);
+        let prop_narrow = t.raster("iiiiiiii", 32.0, [1.0; 4], 400, None);
+        let prop_wide = t.raster("MMMMMMMM", 32.0, [1.0; 4], 400, None);
+        assert!(prop_wide.w > prop_narrow.w * 2, "Segoe UI es proporcional");
     }
 }

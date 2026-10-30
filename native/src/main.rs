@@ -30,7 +30,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut texts = text::TextRasterizer::new();
     for t in &sc.texts {
-        let img = texts.raster(&t.text, t.font_size, layout::hex_color(&t.color), t.weight.unwrap_or(600), t.max_width);
+        let img = texts.raster_with(&t.text, t.font_size, layout::hex_color(&t.color), t.weight.unwrap_or(600), t.max_width, t.font.as_deref());
         comp.add_text(&t.id, &img);
     }
     for img in &layout.images {

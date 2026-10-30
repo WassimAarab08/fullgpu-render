@@ -53,6 +53,12 @@ pub struct TextSpec {
     pub color: String,
     pub weight: Option<u16>,
     pub max_width: Option<f32>,
+    /// Familia tipográfica (por defecto Segoe UI); p. ej. "Consolas" para código.
+    pub font: Option<String>,
+}
+
+fn is_left<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {
+    Ok(String::deserialize(d)? == "left")
 }
 
 /// Un tramo de una fuente: el fotograma `from + k` muestra el segundo `src_start_sec + k * rate / fps`.
@@ -138,6 +144,9 @@ pub enum Draw {
         anchor_bottom: bool,
         #[serde(default = "one")]
         scale: f32,
+        /// `align: "left"`: `cx` es el borde izquierdo en vez del centro.
+        #[serde(default, rename = "align", deserialize_with = "is_left")]
+        align_left: bool,
     },
     Image { id: String, quad: [f32; 4], radius: f32, opacity: f32 },
 }
@@ -226,5 +235,20 @@ mod tests {
         assert!(matches!(&d[4], Draw::Text { scale, .. } if *scale == 1.5));
         assert!(matches!(&d[5], Draw::Image { id, radius, .. } if id == "logo" && *radius == 2.0));
         assert!(Layout::parse(SAMPLE).unwrap().images.is_empty(), "images es opcional");
+    }
+
+    #[test]
+    fn parsea_fuente_y_alineacion_del_texto() {
+        let l = Layout::parse(
+            r##"{ "scene": { "width": 8, "height": 8, "fps": 30, "background": "#000000",
+                  "texts": [ { "id": "c", "text": "x", "fontSize": 20, "color": "#FFFFFF", "font": "Consolas" } ] },
+              "streams": [], "audio": null,
+              "frames": [ { "draws": [ { "kind": "text", "id": "c", "cx": 1, "cy": 1, "opacity": 1, "align": "left" },
+                                       { "kind": "text", "id": "c", "cx": 1, "cy": 1, "opacity": 1 } ] } ] }"##,
+        )
+        .unwrap();
+        assert_eq!(l.scene.texts[0].font.as_deref(), Some("Consolas"));
+        assert!(matches!(&l.frames[0].draws[0], Draw::Text { align_left: true, .. }));
+        assert!(matches!(&l.frames[0].draws[1], Draw::Text { align_left: false, .. }));
     }
 }

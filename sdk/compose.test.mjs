@@ -1,7 +1,7 @@
 // Tests del SDK de composición: nodos (rect, text, image, video, group, sequence) -> formato del motor.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composition, rect, text, image, video, group, sequence, compile } from "./compose.mjs";
+import { composition, rect, text, image, video, audio, group, sequence, compile } from "./compose.mjs";
 
 const probe = async () => ({ w: 1000, h: 2000 });
 const comp = (render, opts = {}) => composition({ width: 200, height: 100, fps: 30, durationInFrames: 10, background: "#101010", ...opts }, render);
@@ -92,4 +92,35 @@ test("video: flujo con inicio absoluto (dentro de una sequence), velocidad y rec
 test("video con fit fill no recorta", async () => {
   const [v] = await draws(() => video({ src: "a.mp4", x: 0, y: 0, width: 100, height: 100, fit: "fill" }));
   assert.deepEqual(v.uv, [0, 0, 1, 1]);
+});
+
+test("text con fuente y alineación a la izquierda", async () => {
+  const out = await compile(comp(() => text({ text: "npm run render", x: 10, y: 20, font: "Consolas", align: "left" })), { probe });
+  assert.equal(out.scene.texts[0].font, "Consolas");
+  assert.equal(out.frames[0].draws[0].align, "left");
+});
+
+test("audio: clips en segundos absolutos (dentro de sequence) del mismo archivo", async () => {
+  const render = () => [
+    audio({ src: "media/voz.mp3" }),
+    sequence({ from: 6 }, () => audio({ src: "media/voz.mp3", startFrom: 2, durationInSeconds: 0.5 })),
+  ];
+  const out = await compile(comp(render), { probe });
+  assert.deepEqual(out.audio, {
+    file: "media/voz.mp3",
+    clips: [
+      { fromSec: 0, srcStartSec: 0, durationSec: 10 / 30 },
+      { fromSec: 6 / 30, srcStartSec: 2, durationSec: 0.5 },
+    ],
+  });
+  assert.equal(out.frames[7].draws.length, 0, "el audio no dibuja nada");
+});
+
+test("audio de dos archivos distintos todavía no está soportado", async () => {
+  await assert.rejects(compile(comp(() => [audio({ src: "a.mp3" }), audio({ src: "b.mp3" })]), { probe }), /un solo archivo/);
+});
+
+test("ignora hijos falsy como React ('', 0, false, null, undefined)", async () => {
+  const d = await draws(() => ["", 0, false, null, undefined, rect({ x: 0, y: 0, width: 1, height: 1 })]);
+  assert.equal(d.length, 1);
 });
