@@ -20,8 +20,8 @@ export const SCENE = {
     tablet: { file: "tablet.mp4", w: 1600, h: 1112, offsetSec: 30 },
   },
   texts: [
-    { id: "title1", text: "Vídeo hecho en la GPU · 视频渲染", fontSize: 64, color: "#1F1F1F", cx: W / 2, cy: 105 },
-    { id: "title2", text: "Vídeo hecho en la GPU — تصيير الفيديو", fontSize: 64, color: "#1F1F1F", cx: W / 2, cy: 105 },
+    { id: "title1", text: "Rendered on the GPU · 视频渲染", fontSize: 64, color: "#1F1F1F", cx: W / 2, cy: 105 },
+    { id: "title2", text: "Rendered on the GPU — تصيير الفيديو", fontSize: 64, color: "#1F1F1F", cx: W / 2, cy: 105 },
   ],
 };
 
