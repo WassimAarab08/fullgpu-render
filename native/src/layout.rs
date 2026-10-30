@@ -46,15 +46,32 @@ pub struct Scene {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Clone)]
 pub struct TextSpec {
+    #[serde(default)]
     pub id: String,
     pub text: String,
     pub font_size: f32,
+    #[serde(default = "white")]
     pub color: String,
     pub weight: Option<u16>,
     pub max_width: Option<f32>,
-    /// Familia tipográfica (por defecto Segoe UI); p. ej. "Consolas" para código.
+    /// Familia tipográfica o lista CSS ("Inter, Segoe UI, sans-serif"); por defecto Segoe UI.
     pub font: Option<String>,
+    /// Altura de línea en px (como CSS). Sin ella: 1,6 x tamaño, o 1,3 si se parte en líneas.
+    pub line_height: Option<f32>,
+    /// Alineación de las líneas partidas: "left", "center" (por defecto) o "right".
+    pub text_align: Option<String>,
+}
+
+fn white() -> String {
+    "#FFFFFF".into()
+}
+
+impl Default for TextSpec {
+    fn default() -> Self {
+        Self { id: String::new(), text: String::new(), font_size: 16.0, color: white(), weight: None, max_width: None, font: None, line_height: None, text_align: None }
+    }
 }
 
 fn is_left<'de, D: serde::Deserializer<'de>>(d: D) -> Result<bool, D::Error> {

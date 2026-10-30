@@ -1,6 +1,7 @@
 //! Motor nativo: NVDEC (ffmpeg, un proceso por plano) -> wgpu (shader compartido con el navegador) -> NVENC (ffmpeg),
 //! con la voz mezclada y multiplexada en el mismo ffmpeg de salida.
 //! Uso: fullgpu-render <layout.json> <carpeta raíz de medios> <salida.mp4>
+//!      fullgpu-render --measure   (mide textos para el layout: una línea JSON por texto)
 //! Imprime en stdout un JSON con las métricas.
 
 mod ffmpeg;
@@ -18,7 +19,11 @@ const LOOKAHEAD: usize = 150;
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    anyhow::ensure!(args.len() == 4, "usage: fullgpu-render <layout.json> <media root> <out.mp4>");
+    if args.get(1).map(String::as_str) == Some("--measure") {
+        return Ok(text::serve_measure(&mut text::TextRasterizer::new(), std::io::stdin().lock(), std::io::stdout().lock())?);
+    }
+    anyhow::ensure!(args.len() == 4, "usage: fullgpu-render <layout.json> <media root> <out.mp4>
+       fullgpu-render --measure  (TextSpec JSON lines on stdin)");
     let root = &args[2];
     let t_init = Instant::now();
     let layout = layout::Layout::parse(&std::fs::read_to_string(&args[1])?)?;
@@ -30,7 +35,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut texts = text::TextRasterizer::new();
     for t in &sc.texts {
-        let img = texts.raster_with(&t.text, t.font_size, layout::hex_color(&t.color), t.weight.unwrap_or(600), t.max_width, t.font.as_deref());
+        let img = texts.raster_spec(t);
         comp.add_text(&t.id, &img);
     }
     for img in &layout.images {

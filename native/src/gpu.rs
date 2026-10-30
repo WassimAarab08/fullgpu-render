@@ -12,7 +12,7 @@ const COMPOSE: &str = include_str!("../../shaders/compose.wgsl");
 const VIDEO_NV12: &str = include_str!("../../shaders/video_nv12.wgsl");
 const RGB_TO_NV12: &str = include_str!("../../shaders/rgb_to_nv12.wgsl");
 const SLOT: u64 = 256;
-const MAX_DRAWS: u64 = 64;
+const MAX_DRAWS: u64 = 512;
 pub const RING: usize = 3;
 
 #[repr(C)]

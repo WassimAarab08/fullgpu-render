@@ -47,7 +47,9 @@
     "doctor": "node sdk/cli.mjs doctor"
   },
   "dependencies": {
-    "mediabunny": "1.62.0"
+    "esbuild": "0.28.2",
+    "mediabunny": "1.62.0",
+    "yoga-layout": "3.2.1"
   },
   "private": false
 }
