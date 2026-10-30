@@ -13,7 +13,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const REPO = "WassimAarab08/fullgpu-render";
 const MAX_DRAWS = 512;
-const USAGE = `Usage:
+export const USAGE = `Usage:
   fullgpu render <entry> [CompositionId] <out.mp4>         render a video
   fullgpu still <entry> [CompositionId] <out.png> [--frame N[,N...]]
                                                            render single frames as PNG (default: frame 0)

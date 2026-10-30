@@ -29,6 +29,9 @@ const PAINT_PROPS = new Set([
   "opacity", "transform", "transformOrigin", "objectFit", "font", "fontStyle", "zIndex", "pointerEvents", "userSelect", "willChange", ...INHERITED,
 ]);
 
+/** Propiedades de `style` que el layout lee; el resto se avisa como no soportado. */
+export const SUPPORTED_STYLE = [...LAYOUT_PROPS, ...PAINT_PROPS];
+
 const caches = new WeakMap();
 
 /**
@@ -98,6 +101,7 @@ function inherit(parentTs, style, warn) {
     } else if (k === "fontWeight") ts.fontWeight = css.fontWeight(style.fontWeight);
     else ts[k] = style[k];
   }
+  if (style.zIndex != null) warn("zIndex is ignored: elements paint in tree order");
   if (style.fontStyle === "italic") warn("fontStyle italic is not supported yet: text is drawn upright");
   return ts;
 }

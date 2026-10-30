@@ -146,6 +146,9 @@ test("lo que el motor no sabe pintar avisa y sigue sin ese efecto", async () => 
   const [r] = await draw(h("div", { style: { width: 10, height: 10, background: "red", transform: "rotate(45deg)" } }), { warnings });
   assert.equal(r.type, "rect");
   assert.match(warnings[0], /rotate/);
+  const more = [];
+  await draw(h("div", { style: { zIndex: 2, width: 1, height: 1 } }), { warnings: more });
+  assert.match(more[0], /zIndex is ignored/);
 });
 
 test("border: un rect con trazo (con o sin fondo) y radio recortado a la mitad de la caja", async () => {

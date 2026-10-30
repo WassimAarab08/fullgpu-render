@@ -1,0 +1,26 @@
+# fullgpu-render
+
+> Programmatic video rendered entirely on an NVIDIA GPU (NVDEC -> wgpu -> NVENC), with no headless browser. Write a
+> video as an SDK composition (.mjs) or as a Remotion project (.tsx) and render it with the `fullgpu` CLI, which has
+> `--json` output, single-frame stills and a `check` command for agents.
+
+Start with the complete reference: it covers the CLI, the agent workflow (check, still, render), the SDK, the supported
+Remotion API and CSS, and the limits, in one file.
+
+## Docs
+
+- [Complete reference for LLMs and agents](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/docs/llms-full.txt): CLI, JSON output, SDK, Remotion subset, CSS, limits
+- [README](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/README.md): what it is, benchmarks, how it works
+- [Agent skill](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/skills/fullgpu-render/SKILL.md): step-by-step workflow for making a video with fullgpu-render
+
+## Examples
+
+- [Remotion project rendered as is](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/examples/remotion-project/src/index.tsx): spring title, flex cards, Img, Series captions
+- [App promo (SDK)](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/examples/app-promo.mjs): kinetic headline, phone mockup, glows
+- [Vertical social clip (SDK)](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/examples/social-vertical.mjs): 9:16 with word-by-word captions
+- [Animated chart (SDK)](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/examples/benchmark-story.mjs): bar chart with springs
+
+## Optional
+
+- [Contributing and repo layout](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/AGENTS.md): build, test and conventions for agents working on fullgpu-render itself
+- [Changelog](https://raw.githubusercontent.com/WassimAarab08/fullgpu-render/main/CHANGELOG.md)
