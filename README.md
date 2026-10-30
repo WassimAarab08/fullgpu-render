@@ -187,6 +187,32 @@ npx fullgpu render hello.mjs hello.mp4  # in your compositions: import { ... } f
 `fullgpu render` resolves `video`, `image` and `audio` paths from the current directory (or `--media-root <dir>`).
 Set `FULLGPU_BIN` to use your own engine build.
 
+| Command | What it does |
+|---|---|
+| `fullgpu render <entry> [id] <out.mp4>` | Render a video |
+| `fullgpu still <entry> [id] <out.png> --frame 0,45,90` | Render single frames as PNG in about a second each |
+| `fullgpu compositions <entry>` | List compositions with size, fps and duration |
+| `fullgpu check <entry> [id]` | Compile every frame without rendering: unsupported CSS, missing media, draw limits |
+| `fullgpu doctor` | Check GPU, ffmpeg and the engine |
+
+Add `--json` to any command for one machine-readable object on stdout.
+
+### Use it from an AI agent
+
+fullgpu-render is built to be driven by coding agents (Claude Code, Codex, Cursor...): every command has `--json`
+output, `check` explains what will not render and why, and `still` lets the agent look at its own frames before
+rendering the whole video.
+
+- **Claude Code plugin** with a skill that teaches the check → still → render loop:
+  ```bash
+  claude plugin marketplace add WassimAarab08/fullgpu-render
+  claude plugin install fullgpu-render@fullgpu-render
+  ```
+  For other agents, copy [`skills/fullgpu-render/`](skills/fullgpu-render/SKILL.md) into their skills folder.
+- **[`llms.txt`](llms.txt)** and **[`docs/llms-full.txt`](docs/llms-full.txt)**: the whole reference (CLI, JSON
+  output, SDK, supported Remotion API and CSS, limits) in one file, generated from the source so it stays current.
+- **[`AGENTS.md`](AGENTS.md)**: build, test and conventions for agents working on fullgpu-render itself.
+
 ### Working on the repo
 
 ```bash

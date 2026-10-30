@@ -3,6 +3,18 @@
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-10-30
+
+### Added
+- CLI for agents and scripts: `fullgpu still` (single frames as PNG, `--frame 0,45,90`), `fullgpu compositions`,
+  `fullgpu check` (compiles every frame without rendering and reports unsupported CSS, missing media and draw limits)
+  and `--json` on every command. The composition id is optional when the entry registers only one.
+- `compile(comp, { range })` compiles a span of frames, with video and audio re-based to its start.
+- `llms.txt` and `docs/llms-full.txt`, a complete reference for LLMs generated from the source (`npm run llms`).
+- Agent skill `skills/fullgpu-render`, installable as a Claude Code plugin from this repository.
+- `AGENTS.md` (and `CLAUDE.md`) for agents working on the repository.
+- React layer: `zIndex` is reported as ignored instead of being accepted silently.
+
 ## [0.4.0] - 2026-10-30
 
 ### Added

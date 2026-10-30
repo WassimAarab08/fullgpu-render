@@ -1,6 +1,6 @@
 {
   "name": "fullgpu-render",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Programmatic video rendering that stays on the GPU end to end (NVDEC -> wgpu/WebGPU -> NVENC)",
   "license": "MIT OR Apache-2.0",
   "repository": "github:WassimAarab08/fullgpu-render",
@@ -30,13 +30,17 @@
     "README.md",
     "LICENSE-MIT",
     "LICENSE-APACHE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "llms.txt",
+    "docs/llms-full.txt",
+    "skills/fullgpu-render/SKILL.md",
+    "AGENTS.md"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test sdk/cli.test.mjs sdk/react/runtime.test.mjs sdk/react/css.test.mjs sdk/react/layout.test.mjs sdk/react/project.test.mjs sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
+    "test": "node --test sdk/cli.test.mjs sdk/react/runtime.test.mjs sdk/react/css.test.mjs sdk/react/layout.test.mjs sdk/react/project.test.mjs sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs tools/llms.test.mjs browser/server.test.mjs",
     "build": "cargo build --release --manifest-path native/Cargo.toml",
     "media": "bash tools/make-sample-media.sh",
     "render": "node sdk/cli.mjs render",
@@ -44,7 +48,8 @@
     "layout": "node scene/scene.mjs > out/layout.json",
     "render:browser": "node browser/server.mjs --out=browser.mp4",
     "bench": "bash tools/run-bench.sh",
-    "doctor": "node sdk/cli.mjs doctor"
+    "doctor": "node sdk/cli.mjs doctor",
+    "llms": "node tools/llms.mjs"
   },
   "dependencies": {
     "esbuild": "0.28.2",
