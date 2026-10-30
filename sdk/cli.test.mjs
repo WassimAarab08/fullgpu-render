@@ -1,7 +1,8 @@
 // Tests de la CLI `fullgpu`: argumentos, nombre del binario por plataforma, orden de búsqueda y diagnóstico.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, assetName, binaryCandidates, releaseUrl, inspectFfmpeg, cacheDir } from "./cli.mjs";
+import { resolve as resolvePath } from "node:path";
+import { parseArgs, assetName, binaryCandidates, releaseUrl, inspectFfmpeg, cacheDir, defaultMediaRoot } from "./cli.mjs";
 
 test("parseArgs: render con composición, salida y carpeta de medios opcional", () => {
   assert.deepEqual(parseArgs(["render", "video.mjs", "out.mp4"]), { command: "render", entry: "video.mjs", out: "out.mp4", mediaRoot: undefined });
@@ -11,6 +12,7 @@ test("parseArgs: render con composición, salida y carpeta de medios opcional", 
   assert.equal(parseArgs([]).command, "help");
   assert.equal(parseArgs(["--help"]).command, "help");
   assert.throws(() => parseArgs(["render", "only-one.mjs"]), /output/);
+  assert.throws(() => parseArgs(["render", "a", "b", "c", "d"]), /output/);
   assert.throws(() => parseArgs(["fly"]), /Unknown command/);
 });
 
@@ -49,4 +51,21 @@ test("inspectFfmpeg detecta NVENC y CUDA en la salida de ffmpeg", () => {
   const hwaccels = "Hardware acceleration methods:\ncuda\nd3d11va\n";
   assert.deepEqual(inspectFfmpeg(encoders, hwaccels), { nvenc: true, cuda: true });
   assert.deepEqual(inspectFfmpeg(" V..... libx264", "Hardware acceleration methods:\nvaapi\n"), { nvenc: false, cuda: false });
+});
+
+test("parseArgs: proyecto React/Remotion con id de composición, props JSON y carpeta public", () => {
+  assert.deepEqual(parseArgs(["render", "src/index.tsx", "Bench", "out.mp4"]), {
+    command: "render", entry: "src/index.tsx", compositionId: "Bench", out: "out.mp4", mediaRoot: undefined, props: undefined,
+  });
+  const a = parseArgs(["render", "src/index.tsx", "Title", "o.mp4", "--props", '{"title":"Hola"}', "--public-dir", "public"]);
+  assert.deepEqual(a.props, { title: "Hola" });
+  assert.equal(a.mediaRoot, "public");
+  assert.throws(() => parseArgs(["render", "i.tsx", "T", "o.mp4", "--props", "{no"]), /--props/);
+});
+
+test("defaultMediaRoot: --media-root si se da; si no, public/ del proyecto (como Remotion) o la carpeta actual", () => {
+  assert.equal(defaultMediaRoot({ mediaRoot: "assets", react: true, cwd: "/p", exists: () => true }), resolvePath("/p", "assets"));
+  assert.equal(defaultMediaRoot({ react: true, cwd: "/p", exists: (d) => d.endsWith("public") }), resolvePath("/p", "public"));
+  assert.equal(defaultMediaRoot({ react: true, cwd: "/p", exists: () => false }), resolvePath("/p"));
+  assert.equal(defaultMediaRoot({ react: false, cwd: "/p", exists: () => true }), resolvePath("/p"));
 });

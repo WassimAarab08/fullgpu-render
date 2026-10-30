@@ -12,11 +12,14 @@ export const composition = (config, render) => ({ fps: 30, background: "#000000"
 
 /** Rectángulo redondeado: { x, y, width, height, radius, color | gradient: { from, to, angle }, shadow: { y, blur, color }, opacity } */
 export const rect = (props) => ({ type: "rect", ...props });
-/** Texto centrado en (x, y): { text, x, y, size, weight, color, font, align: "center" | "left", maxWidth, anchor: "center" | "bottom", background, scale, opacity } */
+/**
+ * Texto centrado en (x, y): { text, x, y, size, weight, color, font, align: "center" | "left", maxWidth, anchor: "center" | "bottom",
+ * background, scale, opacity, lineHeight (px), textAlign (líneas partidas: "left" | "center" | "right") }
+ */
 export const text = (props) => ({ type: "text", ...props });
 /** Imagen: { src, x, y, width, height, radius, opacity } */
 export const image = (props) => ({ type: "image", ...props });
-/** Vídeo: { src, x, y, width, height, radius, from, durationInFrames, startFrom (s), playbackRate, fit: "cover" | "fill", opacity } */
+/** Vídeo: { src, x, y, width, height, radius, from, durationInFrames, startFrom (s), playbackRate, fit: "cover" | "contain" | "fill", opacity } */
 export const video = (props) => ({ type: "video", ...props });
 /** Audio: { src, from, startFrom (s), durationInSeconds }. Por ahora todos los clips deben salir del mismo archivo. */
 export const audio = (props) => ({ type: "audio", ...props });
@@ -72,7 +75,7 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
   for (let f = 0; f < durationInFrames; f++) {
     const draws = [];
     const ctx = { frame: f, start: 0, end: durationInFrames, tx: 0, ty: 0, s: 1, o: 1 };
-    const tree = render({ frame: f, fps, width, height, durationInFrames });
+    const tree = await render({ frame: f, fps, width, height, durationInFrames });
     await walk(tree, ctx, draws);
     frames.push({ draws });
   }
@@ -126,6 +129,8 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
         const spec = { text: String(node.text), fontSize: node.size ?? 48, color: hex(node.color ?? "#ffffff"), weight: node.weight ?? 600 };
         if (node.maxWidth) spec.maxWidth = node.maxWidth;
         if (node.font) spec.font = node.font;
+        if (node.lineHeight) spec.lineHeight = node.lineHeight;
+        if (node.textAlign) spec.textAlign = node.textAlign;
         const [cx, cy] = pt(node.x ?? 0, node.y ?? 0);
         const d = { kind: "text", id: textId(spec), cx, cy, opacity, scale: (node.scale ?? 1) * ctx.s };
         if (node.anchor === "bottom") d.anchorBottom = true;
@@ -160,10 +165,14 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
         const key = node.id ?? `${node.src}|${from}|${startFrom}|${rate}`;
         if (!sizes.has(node.src)) sizes.set(node.src, await probe(node.src));
         const src = sizes.get(node.src);
-        const r = box(node);
+        let r = box(node);
         let uv = [0, 0, 1, 1];
         let visible = [1, 1];
-        if ((node.fit ?? "cover") === "cover") {
+        if (node.fit === "contain") {
+          const scale = Math.min(r[2] / src.w, r[3] / src.h);
+          const [w, h] = [src.w * scale, src.h * scale];
+          r = [r[0] + (r[2] - w) / 2, r[1] + (r[3] - h) / 2, w, h];
+        } else if ((node.fit ?? "cover") === "cover") {
           const scale = Math.max(r[2] / src.w, r[3] / src.h);
           visible = [Math.min(1, r[2] / scale / src.w), Math.min(1, r[3] / scale / src.h)];
           uv = [(1 - visible[0]) / 2, (1 - visible[1]) / 2, (1 + visible[0]) / 2, (1 + visible[1]) / 2];

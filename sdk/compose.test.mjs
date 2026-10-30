@@ -124,3 +124,20 @@ test("ignora hijos falsy como React ('', 0, false, null, undefined)", async () =
   const d = await draws(() => ["", 0, false, null, undefined, rect({ x: 0, y: 0, width: 1, height: 1 })]);
   assert.equal(d.length, 1);
 });
+
+test("text con altura de línea y alineación de líneas partidas pasa al motor", async () => {
+  const out = await compile(comp(() => text({ text: "a b c", x: 10, y: 10, size: 20, lineHeight: 30, textAlign: "left", maxWidth: 40 })), { probe });
+  assert.deepEqual(out.scene.texts[0], { id: "t0", text: "a b c", fontSize: 20, color: "#ffffff", weight: 600, maxWidth: 40, lineHeight: 30, textAlign: "left" });
+});
+
+test("video con fit contain: encaja la fuente sin recortar, centrada en su caja", async () => {
+  // Fuente 1000x2000 (vertical) en una caja de 200x100: queda de 50x100 centrada.
+  const [d] = await draws(() => video({ src: "v.mp4", x: 0, y: 0, width: 200, height: 100, fit: "contain" }));
+  assert.deepEqual(d.rect, [75, 0, 50, 100]);
+  assert.deepEqual(d.uv, [0, 0, 1, 1]);
+});
+
+test("render puede ser asíncrono (la capa React calcula el layout así)", async () => {
+  const [r] = await draws(async ({ frame }) => rect({ x: frame, y: 0, width: 1, height: 1 }), 3);
+  assert.deepEqual(r.rect, [3, 0, 1, 1]);
+});

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// CLI `fullgpu`: renderiza composiciones del SDK y comprueba el entorno.
+// CLI `fullgpu`: renderiza composiciones del SDK o proyectos React/Remotion y comprueba el entorno.
 //   fullgpu render <composición.mjs> <salida.mp4> [--media-root <carpeta>]
+//   fullgpu render <src/index.tsx> <IdComposición> <salida.mp4> [--props <json>] [--public-dir <carpeta>]
 //   fullgpu doctor
 // El binario nativo se busca en FULLGPU_BIN, en native/target/release (compilación local) y en la caché del usuario;
 // si no está, se descarga de la release de GitHub que corresponde a la versión del paquete.
@@ -14,10 +15,12 @@ const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const REPO = "WassimAarab08/fullgpu-render";
 const USAGE = `Usage:
   fullgpu render <composition.mjs> <out.mp4> [--media-root <dir>]
+  fullgpu render <src/index.tsx> <CompositionId> <out.mp4> [--props <json>] [--public-dir <dir>]
   fullgpu doctor
   fullgpu --version
 
-Media paths in a composition (video, image, audio src) resolve from --media-root (default: current directory).`;
+Media paths (video, image, audio src, staticFile()) resolve from --media-root / --public-dir
+(default: ./public for React projects if it exists, otherwise the current directory).`;
 
 export function parseArgs(argv) {
   const [cmd, ...rest] = argv;
@@ -27,11 +30,19 @@ export function parseArgs(argv) {
   if (cmd === "render") {
     const positional = [];
     let mediaRoot;
+    let props;
     for (let i = 0; i < rest.length; i++) {
-      if (rest[i] === "--media-root") mediaRoot = rest[++i];
-      else positional.push(rest[i]);
+      if (rest[i] === "--media-root" || rest[i] === "--public-dir") mediaRoot = rest[++i];
+      else if (rest[i] === "--props") {
+        try {
+          props = JSON.parse(rest[++i]);
+        } catch {
+          throw new Error("--props must be valid JSON");
+        }
+      } else positional.push(rest[i]);
     }
-    if (positional.length !== 2) throw new Error("render needs a composition file and an output .mp4");
+    if (positional.length === 3) return { command: "render", entry: positional[0], compositionId: positional[1], out: positional[2], mediaRoot, props };
+    if (positional.length !== 2) throw new Error("render needs a composition file and an output .mp4 (or an entry, a composition id and an output .mp4)");
     return { command: "render", entry: positional[0], out: positional[1], mediaRoot };
   }
   throw new Error(`Unknown command: ${cmd}`);
@@ -63,6 +74,13 @@ export function inspectFfmpeg(encoders, hwaccels) {
   return { nvenc: /\bh264_nvenc\b/.test(encoders), cuda: /^\s*cuda\s*$/m.test(hwaccels) };
 }
 
+/** Carpeta desde la que se resuelven los medios: la indicada, public/ en proyectos React (como Remotion) o la actual. */
+export function defaultMediaRoot({ mediaRoot, react, cwd, exists }) {
+  if (mediaRoot) return resolve(cwd, mediaRoot);
+  if (react && exists(join(cwd, "public"))) return join(resolve(cwd), "public");
+  return resolve(cwd);
+}
+
 const version = () => JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 
 async function findBinary({ download = true } = {}) {
@@ -81,16 +99,47 @@ async function findBinary({ download = true } = {}) {
   return target;
 }
 
-async function render({ entry, out, mediaRoot }) {
+async function loadReact({ entry, compositionId, props }, exe) {
+  const { loadProject, reactComposition } = await import("./react/project.mjs");
+  const { startMeasurer } = await import("./react/measure.mjs");
+  const comps = await loadProject(resolve(entry));
+  const info = comps.find((c) => c.id === compositionId);
+  if (!info) throw new Error(`No composition "${compositionId}" in ${entry} (found: ${comps.map((c) => c.id).join(", ") || "none"})`);
+  if (info.calculateMetadata) {
+    const meta = await info.calculateMetadata({ defaultProps: info.defaultProps, props: { ...info.defaultProps, ...props }, abortSignal: new AbortController().signal, compositionId });
+    Object.assign(info, Object.fromEntries(Object.entries(meta ?? {}).filter(([k, v]) => v != null && k !== "props")));
+    if (meta?.props) props = meta.props;
+  }
+  const measurer = startMeasurer(exe);
+  const warnings = new Set();
+  const comp = reactComposition(info, { props, measure: measurer.measure, warn: (m) => warnings.add(m) });
+  return { comp, warnings, done: measurer.close };
+}
+
+async function render(args) {
+  const { entry, out, compositionId } = args;
   const { compile } = await import("./compose.mjs");
   const t0 = performance.now();
-  const comp = (await import(pathToFileURL(resolve(entry)).href)).default;
-  if (!comp?.render) throw new Error(`${entry} must export default a composition(...)`);
-  const root = resolve(mediaRoot ?? process.cwd());
-  const layout = await compile(comp, { mediaRoot: root });
+  const root = defaultMediaRoot({ mediaRoot: args.mediaRoot, react: !!compositionId, cwd: process.cwd(), exists: existsSync });
+  let comp;
+  let react = null;
+  if (compositionId) {
+    react = await loadReact(args, await findBinary());
+    comp = react.comp;
+  } else {
+    comp = (await import(pathToFileURL(resolve(entry)).href)).default;
+    if (!comp?.render) throw new Error(`${entry} must export default a composition(...)`);
+  }
+  let layout;
+  try {
+    layout = await compile(comp, { mediaRoot: root });
+  } finally {
+    await react?.done();
+  }
+  for (const w of react?.warnings ?? []) console.error(`warning: ${w}`);
   const dir = join(tmpdir(), "fullgpu-render");
   mkdirSync(dir, { recursive: true });
-  const layoutPath = join(dir, `${basename(entry, ".mjs")}-${process.pid}.layout.json`);
+  const layoutPath = join(dir, `${compositionId ?? basename(entry, ".mjs")}-${process.pid}.layout.json`);
   writeFileSync(layoutPath, JSON.stringify(layout));
   const compileMs = performance.now() - t0;
   const exe = await findBinary();

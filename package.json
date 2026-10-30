@@ -36,7 +36,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "test": "node --test sdk/cli.test.mjs sdk/react/runtime.test.mjs sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
+    "test": "node --test sdk/cli.test.mjs sdk/react/runtime.test.mjs sdk/react/css.test.mjs sdk/react/layout.test.mjs sdk/react/project.test.mjs sdk/animation.test.mjs sdk/compose.test.mjs scene/scene.test.mjs tools/verify.test.mjs tools/bench.test.mjs browser/server.test.mjs",
     "build": "cargo build --release --manifest-path native/Cargo.toml",
     "media": "bash tools/make-sample-media.sh",
     "render": "node sdk/cli.mjs render",
