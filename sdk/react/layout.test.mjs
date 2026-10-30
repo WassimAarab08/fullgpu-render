@@ -51,7 +51,7 @@ test("div absoluto con padding, radio y sombra; el hijo al 100% ocupa la caja de
       h("div", { style: { width: 400, height: 300, borderRadius: 44, overflow: "hidden", background: "red" } })));
   const [outer, inner] = await draw(el);
   assert.deepEqual([outer.x, outer.y, outer.width, outer.height, outer.radius], [100, 50, 432, 332, 60]);
-  assert.deepEqual(outer.shadow, { x: 0, y: 40, blur: 80, color: "rgba(31,31,31,0.28)" });
+  assert.deepEqual(outer.shadow, { x: 0, y: 40, blur: 80, color: "rgba(31,31,31,0.28)", clip: true });
   assert.deepEqual([inner.x, inner.y, inner.width, inner.height, inner.radius], [116, 66, 400, 300, 44]);
 });
 

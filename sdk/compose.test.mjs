@@ -23,7 +23,9 @@ test("rect: color CSS, radio, sombra debajo y degradado con ángulo CSS", async 
   assert.deepEqual(box.color, [1, 0, 0, 1]);
   assert.equal(box.radius, 8);
   assert.deepEqual(shadow.rect, [10, 30, 50, 30]);
-  assert.deepEqual(shadow.cutout, [10, 20, 50, 30], "como CSS, la sombra no se ve debajo de la caja");
+  assert.equal(shadow.cutout, undefined, "por defecto la sombra también se ve bajo la caja (resplandores)");
+  const [clipped] = await draws(() => rect({ x: 10, y: 20, width: 50, height: 30, color: "#f00", shadow: { y: 10, blur: 20, clip: true } }));
+  assert.deepEqual(clipped.cutout, [10, 20, 50, 30], "clip: como CSS, no se ve debajo de la caja");
   assert.equal(shadow.softness, 20);
   assert.deepEqual(shadow.color, [0, 0, 0, 0.5]);
   const [g] = await draws(() => rect({ x: 0, y: 0, width: 10, height: 10, gradient: { from: "#000", to: "#fff", angle: 90 } }));

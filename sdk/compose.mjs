@@ -11,7 +11,7 @@ import { parseColor } from "./animation.mjs";
 export const composition = (config, render) => ({ fps: 30, background: "#000000", ...config, render });
 
 /**
- * Rectángulo redondeado: { x, y, width, height, radius, color | gradient: { from, to, angle }, shadow: { y, blur, color },
+ * Rectángulo redondeado: { x, y, width, height, radius, color | gradient: { from, to, angle }, shadow: { y, blur, color, clip },
  * border: { width, color }, opacity }. Con border y sin color ni degradado solo se pinta el borde.
  */
 export const rect = (props) => ({ type: "rect", ...props });
@@ -120,8 +120,11 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
           const sh = [r[0] + (node.shadow.x ?? 0) * ctx.s, r[1] + (node.shadow.y ?? 0) * ctx.s, r[2], r[3]];
           const m = (node.shadow.blur ?? 0) * ctx.s;
           const quad = [sh[0] - m, sh[1] - m, sh[2] + 2 * m, sh[3] + 2 * m];
-          // Como CSS, la sombra no se ve debajo de la caja (importa con fondos translúcidos).
-          draws.push({ kind: "shape", rect: sh, quad, radius, softness: Math.max(1, m), color: rgba(node.shadow.color ?? "rgba(0,0,0,0.3)"), opacity, cutout: r });
+          const d = { kind: "shape", rect: sh, quad, radius, softness: Math.max(1, m), color: rgba(node.shadow.color ?? "rgba(0,0,0,0.3)"), opacity };
+          // clip: como CSS, la sombra no se ve debajo de la caja (importa con fondos translúcidos). Sin clip también
+          // se ve, que es lo que usan los resplandores (un rect translúcido con una sombra grande).
+          if (node.shadow.clip) d.cutout = r;
+          draws.push(d);
         }
         if (!node.border || node.color || node.gradient) {
           const d = { kind: "shape", rect: r, quad: r, radius, softness: 1, color: rgba(node.gradient?.from ?? node.color ?? "#ffffff"), opacity };

@@ -384,7 +384,7 @@ function paint(b, W, H, radius, warn) {
   // El fondo ocupa la caja del borde (background-clip: border-box) y el borde es un trazo encima, como en CSS. La sombra
   // se recorta bajo la caja, así que también vale sin fondo.
   const node = { type: "rect", x: 0, y: 0, width: W, height: H, radius: Math.min(radius, W / 2, H / 2), ...(bg ?? (border ? {} : { color: "transparent" })) };
-  if (shadow) node.shadow = { x: shadow.x, y: shadow.y, blur: shadow.blur, color: shadow.color };
+  if (shadow) node.shadow = { x: shadow.x, y: shadow.y, blur: shadow.blur, color: shadow.color, clip: true };
   if (border) node.border = border;
   out.push(node);
   return out;
