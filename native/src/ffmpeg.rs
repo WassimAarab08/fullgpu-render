@@ -37,42 +37,70 @@ pub fn decode_args(path: &str, start: f64, src_dur: f64, rate: f64, frames: usiz
     .collect()
 }
 
-/// Codifica NV12 crudo de stdin con NVENC y, si hay voz, mezcla sus tramos (atrim + adelay + amix) y la multiplexa.
-pub fn encode_args(w: u32, h: u32, fps: u32, out: &str, voice: Option<(&str, &[Clip])>) -> Vec<String> {
+fn strings(v: &[&str]) -> Vec<String> {
+    v.iter().map(|s| s.to_string()).collect()
+}
+
+/// Codifica NV12 crudo de stdin con NVENC (solo vídeo; la voz va en `audio_mix_args` y se une con `mux_args`).
+pub fn encode_args(w: u32, h: u32, fps: u32, out: &str) -> Vec<String> {
     let size = format!("{w}x{h}");
     let gop = (2 * fps).to_string();
     let fps = fps.to_string();
-    let mut a: Vec<String> = ["-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "nv12", "-s", &size, "-r", &fps, "-i", "-"]
+    strings(&[
+        "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "nv12", "-s", &size, "-r", &fps, "-i", "-",
+        "-c:v", "h264_nvenc", "-preset", "p4", "-tune", "hq", "-b:v", "8M", "-g", &gop,
+        "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
+        out,
+    ])
+}
+
+/// Mezcla los tramos de voz (atrim + adelay + amix) en un proceso aparte, en paralelo al render.
+/// Meterlo en el mismo ffmpeg que NVENC frenaba la tubería de vídeo (~28 s en un vídeo de 4 min).
+pub fn audio_mix_args(file: &str, clips: &[Clip], out: &str) -> Vec<String> {
+    let mut graph: Vec<String> = clips
         .iter()
-        .map(|s| s.to_string())
+        .enumerate()
+        .map(|(i, c)| {
+            let delay = (c.from_sec * 1000.0).round() as i64;
+            format!("[0:a]atrim=start={}:duration={},asetpts=PTS-STARTPTS,adelay={delay}:all=1[a{i}]", c.src_start_sec, c.duration_sec)
+        })
         .collect();
-    if let Some((file, clips)) = voice {
-        let mut graph: Vec<String> = clips
-            .iter()
-            .enumerate()
-            .map(|(i, c)| {
-                let delay = (c.from_sec * 1000.0).round() as i64;
-                format!(
-                    "[1:a]atrim=start={}:duration={},asetpts=PTS-STARTPTS,adelay={delay}:all=1[a{i}]",
-                    c.src_start_sec, c.duration_sec
-                )
-            })
-            .collect();
-        let inputs: String = (0..clips.len()).map(|i| format!("[a{i}]")).collect();
-        graph.push(format!("{inputs}amix=inputs={}:normalize=0[aout]", clips.len()));
-        a.extend(["-i".into(), file.into(), "-filter_complex".into(), graph.join(";")]);
-        a.extend(["-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k"].iter().map(|s| s.to_string()));
+    let inputs: String = (0..clips.len()).map(|i| format!("[a{i}]")).collect();
+    graph.push(format!("{inputs}amix=inputs={}:normalize=0[aout]", clips.len()));
+    let graph = graph.join(";");
+    strings(&["-v", "error", "-y", "-i", file, "-filter_complex", &graph, "-map", "[aout]", "-c:a", "aac", "-b:a", "192k", out])
+}
+
+/// Une vídeo y voz sin recodificar.
+pub fn mux_args(video: &str, audio: &str, out: &str) -> Vec<String> {
+    strings(&["-v", "error", "-y", "-i", video, "-i", audio, "-map", "0:v", "-map", "1:a", "-c", "copy", "-movflags", "+faststart", out])
+}
+
+/// Ejecuta ffmpeg hasta el final y falla si no termina bien.
+pub fn run(args: &[String]) -> anyhow::Result<()> {
+    let status = Command::new("ffmpeg").args(args).status()?;
+    anyhow::ensure!(status.success(), "ffmpeg terminó con {status}");
+    Ok(())
+}
+
+/// Carga una imagen (PNG, JPEG, WebP...) con ffmpeg como RGBA premultiplicado.
+pub fn load_image(path: &str) -> anyhow::Result<crate::text::TextImage> {
+    let probe = Command::new("ffprobe")
+        .args(["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", path])
+        .output()?;
+    let dims = String::from_utf8_lossy(&probe.stdout);
+    let (w, h) = dims.trim().split_once('x').ok_or_else(|| anyhow::anyhow!("no se pudo leer el tamaño de {path}"))?;
+    let (w, h): (u32, u32) = (w.parse()?, h.parse()?);
+    let out = Command::new("ffmpeg").args(["-v", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgba", "-"]).output()?;
+    anyhow::ensure!(out.status.success() && out.stdout.len() == (w * h * 4) as usize, "ffmpeg no pudo decodificar {path}");
+    let mut rgba = out.stdout;
+    for p in rgba.chunks_mut(4) {
+        let a = p[3] as u32;
+        for c in &mut p[..3] {
+            *c = ((*c as u32 * a + 127) / 255) as u8;
+        }
     }
-    a.extend(
-        [
-            "-c:v", "h264_nvenc", "-preset", "p4", "-tune", "hq", "-b:v", "8M", "-g", &gop,
-            "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
-            out,
-        ]
-        .iter()
-        .map(|s| s.to_string()),
-    );
-    a
+    Ok(crate::text::TextImage { w, h, rgba })
 }
 
 /// true si la fuente es de rango completo (color_range=pc, p. ej. yuvj420p).
@@ -182,7 +210,7 @@ mod tests {
 
     #[test]
     fn codifica_nv12_con_nvenc() {
-        let a = encode_args(1920, 1080, 30, "out.mp4", None).join(" ");
+        let a = encode_args(1920, 1080, 30, "out.mp4").join(" ");
         assert!(a.contains("-pix_fmt nv12 -s 1920x1080 -r 30 -i -"));
         assert!(a.contains("-c:v h264_nvenc"));
         assert!(a.contains("-g 60"));
@@ -191,17 +219,40 @@ mod tests {
     }
 
     #[test]
-    fn mezcla_los_tramos_de_voz_en_su_sitio_y_los_multiplexa() {
+    fn mezcla_los_tramos_de_voz_en_un_proceso_aparte() {
         let clips = [
             Clip { from_sec: 0.5, src_start_sec: 0.0, duration_sec: 12.38 },
             Clip { from_sec: 13.8, src_start_sec: 12.5, duration_sec: 14.0 },
         ];
-        let a = encode_args(1920, 1080, 30, "out.mp4", Some(("voz.mp3", &clips))).join(" ");
-        assert!(a.contains("-i - -i voz.mp3"));
-        assert!(a.contains("[1:a]atrim=start=0:duration=12.38,asetpts=PTS-STARTPTS,adelay=500:all=1[a0]"));
-        assert!(a.contains("[1:a]atrim=start=12.5:duration=14,asetpts=PTS-STARTPTS,adelay=13800:all=1[a1]"));
+        let a = audio_mix_args("voz.mp3", &clips, "voz.m4a").join(" ");
+        assert!(a.contains("-i voz.mp3"));
+        assert!(a.contains("[0:a]atrim=start=0:duration=12.38,asetpts=PTS-STARTPTS,adelay=500:all=1[a0]"));
+        assert!(a.contains("[0:a]atrim=start=12.5:duration=14,asetpts=PTS-STARTPTS,adelay=13800:all=1[a1]"));
         assert!(a.contains("[a0][a1]amix=inputs=2:normalize=0[aout]"));
-        assert!(a.contains("-map 0:v -map [aout]"));
-        assert!(a.contains("-c:a aac"));
+        assert!(a.ends_with("-map [aout] -c:a aac -b:a 192k voz.m4a"));
+    }
+
+    #[test]
+    fn multiplexa_sin_recodificar() {
+        let a = mux_args("v.mp4", "voz.m4a", "out.mp4").join(" ");
+        assert!(a.contains("-i v.mp4 -i voz.m4a"));
+        assert!(a.ends_with("-map 0:v -map 1:a -c copy -movflags +faststart out.mp4"));
+    }
+
+    #[test]
+    #[ignore = "necesita ffmpeg"]
+    fn carga_una_imagen_como_rgba_premultiplicado() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/target/test-half-red.png");
+        let ok = Command::new("ffmpeg")
+            .args(["-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red@0.5:s=4x2,format=rgba", "-frames:v", "1", path])
+            .status()
+            .unwrap();
+        assert!(ok.success());
+        let img = load_image(path).unwrap();
+        assert_eq!((img.w, img.h, img.rgba.len()), (4, 2, 32));
+        let p = &img.rgba[..4];
+        assert!((p[3] as i32 - 128).abs() <= 1, "alfa {}", p[3]);
+        assert!((p[0] as i32 - p[3] as i32).abs() <= 1, "rojo premultiplicado {}", p[0]);
+        assert_eq!((p[1], p[2]), (0, 0));
     }
 }

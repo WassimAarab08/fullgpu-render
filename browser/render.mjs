@@ -179,8 +179,10 @@ async function main() {
     draws.forEach((d, i) => {
       const o = (i * SLOT) / 4;
       const quad = d.kind === "text" ? [d.cx - texts[d.id].w / 2, d.cy - texts[d.id].h / 2, texts[d.id].w, texts[d.id].h] : d.quad;
-      uniforms.set([...quad, ...(d.rect ?? quad), ...(d.color ?? [0, 0, 0, 0]), d.radius ?? 0, d.softness ?? 1, d.opacity, 0, W, H, 0, 0], o);
-      const entries = [{ binding: 0, resource: { buffer: ubuf, offset: i * SLOT, size: 80 } }];
+      const color2 = d.kind === "video" ? (d.uv ?? [0, 0, 1, 1]) : (d.gradient?.to ?? [0, 0, 0, 0]);
+      const extra = d.gradient ? [...d.gradient.dir, 1, 0] : [0, 0, 0, 0];
+      uniforms.set([...quad, ...(d.rect ?? quad), ...(d.color ?? [0, 0, 0, 0]), ...color2, d.radius ?? 0, d.softness ?? 1, d.opacity, 0, ...extra, W, H, 0, 0], o);
+      const entries = [{ binding: 0, resource: { buffer: ubuf, offset: i * SLOT, size: 112 } }];
       if (d.kind !== "shape") entries.push({ binding: 1, resource: sampler });
       if (d.kind === "text") entries.push({ binding: 2, resource: texts[d.id].view });
       if (d.kind === "video") entries.push({ binding: 3, resource: device.importExternalTexture({ source: vframes[d.source] }) });

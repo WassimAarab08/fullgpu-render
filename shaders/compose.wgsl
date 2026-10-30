@@ -7,7 +7,9 @@ struct Draw {
   quad: vec4f,   // área dibujada en px: x, y, w, h
   rect: vec4f,   // rectángulo redondeado en px: x, y, w, h
   color: vec4f,  // rgba sin premultiplicar
+  color2: vec4f, // forma: color final del degradado; vídeo: parte de la fuente mostrada (u0, v0, u1, v1)
   params: vec4f, // radio, suavizado en px, opacidad, rango completo (1) o limitado (0) del vídeo
+  extra: vec4f,  // forma: dirección del degradado (x, y) y 1 si hay degradado
   canvas: vec4f, // ancho, alto del lienzo
 };
 
@@ -42,18 +44,35 @@ fn coverage(px: vec2f) -> f32 {
   return 1.0 - smoothstep(-s * 0.5, s * 0.5, sd_round_rect(px, d.rect, d.params.x));
 }
 
+// Color de la forma: liso o degradado lineal a lo largo de d.extra.xy (de borde a borde del rectángulo).
+fn fill(px: vec2f) -> vec4f {
+  if (d.extra.z < 0.5) {
+    return d.color;
+  }
+  let dir = d.extra.xy;
+  let half = 0.5 * (abs(dir.x) * d.rect.z + abs(dir.y) * d.rect.w);
+  let t = clamp(dot(px - (d.rect.xy + d.rect.zw * 0.5), dir) / max(half, 1e-3) * 0.5 + 0.5, 0.0, 1.0);
+  return mix(d.color, d.color2, t);
+}
+
 @fragment
 fn fs_shape(v: VOut) -> @location(0) vec4f {
-  let a = d.color.a * d.params.z * coverage(v.px);
-  return vec4f(d.color.rgb * a, a);
+  let c = fill(v.px);
+  let a = c.a * d.params.z * coverage(v.px);
+  return vec4f(c.rgb * a, a);
 }
 
 @group(0) @binding(2) var img: texture_2d<f32>;
 
-// Texto ya rasterizado (premultiplicado) en una textura del tamaño del quad.
+// Texto o imagen ya rasterizados (premultiplicados) en una textura que cubre el quad; d.params.x redondea esquinas.
 @fragment
 fn fs_image(v: VOut) -> @location(0) vec4f {
-  return textureSample(img, samp, v.uv) * d.params.z;
+  return textureSample(img, samp, v.uv) * d.params.z * coverage(v.px);
+}
+
+// Coordenada de la fuente de vídeo dentro de la parte mostrada (d.color2), para recortar como object-fit: cover.
+fn video_uv(uv: vec2f) -> vec2f {
+  return mix(d.color2.xy, d.color2.zw, uv);
 }
 
 // Pantalla: color del vídeo recortado con el rectángulo redondeado.

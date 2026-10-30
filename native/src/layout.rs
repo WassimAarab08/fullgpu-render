@@ -8,7 +8,31 @@ pub struct Layout {
     pub scene: Scene,
     pub streams: Vec<Stream>,
     pub audio: Option<Audio>,
+    #[serde(default)]
+    pub images: Vec<ImageSpec>,
     pub frames: Vec<Frame>,
+}
+
+/// Imagen (PNG, JPEG...) que se carga una vez como textura.
+#[derive(Deserialize)]
+pub struct ImageSpec {
+    pub id: String,
+    pub file: String,
+}
+
+/// Degradado lineal: de `color` a `to` en la dirección `dir` (vector unitario en px de pantalla).
+#[derive(Deserialize)]
+pub struct Gradient {
+    pub to: [f32; 4],
+    pub dir: [f32; 2],
+}
+
+fn full_uv() -> [f32; 4] {
+    [0.0, 0.0, 1.0, 1.0]
+}
+
+fn one() -> f32 {
+    1.0
 }
 
 #[derive(Deserialize)]
@@ -83,8 +107,27 @@ pub struct TextBg {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase", rename_all_fields = "camelCase")]
 pub enum Draw {
-    Shape { quad: [f32; 4], rect: [f32; 4], radius: f32, softness: f32, color: [f32; 4], opacity: f32 },
-    Video { source: String, quad: [f32; 4], rect: [f32; 4], radius: f32, softness: f32, opacity: f32 },
+    Shape {
+        quad: [f32; 4],
+        rect: [f32; 4],
+        radius: f32,
+        softness: f32,
+        color: [f32; 4],
+        opacity: f32,
+        #[serde(default)]
+        gradient: Option<Gradient>,
+    },
+    /// `uv`: parte de la fuente que se muestra (u0, v0, u1, v1), para recortar como `object-fit: cover`.
+    Video {
+        source: String,
+        quad: [f32; 4],
+        rect: [f32; 4],
+        radius: f32,
+        softness: f32,
+        opacity: f32,
+        #[serde(default = "full_uv")]
+        uv: [f32; 4],
+    },
     Text {
         id: String,
         cx: f32,
@@ -93,7 +136,10 @@ pub enum Draw {
         bg: Option<TextBg>,
         #[serde(default)]
         anchor_bottom: bool,
+        #[serde(default = "one")]
+        scale: f32,
     },
+    Image { id: String, quad: [f32; 4], radius: f32, opacity: f32 },
 }
 
 impl Layout {
@@ -150,5 +196,35 @@ mod tests {
     #[test]
     fn convierte_colores_hex() {
         assert_eq!(hex_color("#FF0000"), [1.0, 0.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn parsea_degradados_recorte_de_video_escala_de_texto_e_imagenes() {
+        let l = Layout::parse(
+            r##"{
+          "scene": { "width": 64, "height": 32, "fps": 30, "background": "#000000", "texts": [] },
+          "streams": [], "audio": null,
+          "images": [ { "id": "logo", "file": "docs/logo.png" } ],
+          "frames": [ { "draws": [
+            { "kind": "shape", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "color": [0,0,0,1], "opacity": 1,
+              "gradient": { "to": [1,1,1,1], "dir": [1,0] } },
+            { "kind": "shape", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "color": [0,0,0,1], "opacity": 1 },
+            { "kind": "video", "source": "v", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "opacity": 1, "uv": [0.5,0,1,1] },
+            { "kind": "video", "source": "v", "quad": [0,0,8,8], "rect": [0,0,8,8], "radius": 0, "softness": 1, "opacity": 1 },
+            { "kind": "text", "id": "t", "cx": 1, "cy": 1, "opacity": 1, "scale": 1.5 },
+            { "kind": "image", "id": "logo", "quad": [0,0,8,8], "radius": 2, "opacity": 1 }
+          ] } ]
+        }"##,
+        )
+        .unwrap();
+        assert_eq!(l.images[0].file, "docs/logo.png");
+        let d = &l.frames[0].draws;
+        assert!(matches!(&d[0], Draw::Shape { gradient: Some(g), .. } if g.dir == [1.0, 0.0] && g.to[0] == 1.0));
+        assert!(matches!(&d[1], Draw::Shape { gradient: None, .. }));
+        assert!(matches!(&d[2], Draw::Video { uv, .. } if *uv == [0.5, 0.0, 1.0, 1.0]));
+        assert!(matches!(&d[3], Draw::Video { uv, .. } if *uv == [0.0, 0.0, 1.0, 1.0]));
+        assert!(matches!(&d[4], Draw::Text { scale, .. } if *scale == 1.5));
+        assert!(matches!(&d[5], Draw::Image { id, radius, .. } if id == "logo" && *radius == 2.0));
+        assert!(Layout::parse(SAMPLE).unwrap().images.is_empty(), "images es opcional");
     }
 }

@@ -5,8 +5,9 @@
 
 @fragment
 fn fs_video(v: VOut) -> @location(0) vec4f {
-  var y = textureSample(tex_y, samp, v.uv).r;
-  var c = textureSample(tex_uv, samp, v.uv).rg - vec2f(0.5);
+  let uv = video_uv(v.uv);
+  var y = textureSample(tex_y, samp, uv).r;
+  var c = textureSample(tex_uv, samp, uv).rg - vec2f(0.5);
   if (d.params.w < 0.5) {
     y = (y - 16.0 / 255.0) * (255.0 / 219.0);
     c = c * (255.0 / 224.0);

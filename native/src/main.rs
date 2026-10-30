@@ -33,6 +33,9 @@ fn main() -> anyhow::Result<()> {
         let img = texts.raster(&t.text, t.font_size, layout::hex_color(&t.color), t.weight.unwrap_or(600), t.max_width);
         comp.add_text(&t.id, &img);
     }
+    for img in &layout.images {
+        comp.add_image(&img.id, &ffmpeg::load_image(&format!("{root}/{}", img.file))?);
+    }
     let mut full_range: HashMap<&str, bool> = HashMap::new();
     for s in &layout.streams {
         if !full_range.contains_key(s.file.as_str()) {
@@ -40,9 +43,14 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    // NVENC (y la voz) en otro proceso ffmpeg, alimentado desde un hilo para no bloquear la GPU.
-    let voice = layout.audio.as_ref().map(|a| (format!("{root}/{}", a.file), &a.clips[..]));
-    let eargs = ffmpeg::encode_args(sc.width, sc.height, sc.fps, &args[3], voice.as_ref().map(|(f, c)| (f.as_str(), *c)));
+    // La voz se mezcla en paralelo en su propio ffmpeg; el vídeo va a NVENC y al final se unen sin recodificar.
+    let video_out = if layout.audio.is_some() { format!("{}.video.mp4", args[3]) } else { args[3].clone() };
+    let voice_out = format!("{}.voice.m4a", args[3]);
+    let mixer = layout.audio.as_ref().map(|a| {
+        let margs = ffmpeg::audio_mix_args(&format!("{root}/{}", a.file), &a.clips, &voice_out);
+        thread::spawn(move || ffmpeg::run(&margs))
+    });
+    let eargs = ffmpeg::encode_args(sc.width, sc.height, sc.fps, &video_out);
     let (to_enc, enc_rx) = sync_channel::<Vec<u8>>(4);
     let writer = thread::spawn(move || -> anyhow::Result<()> {
         let mut enc = ffmpeg::Encoder::spawn(&eargs)?;
@@ -120,6 +128,12 @@ fn main() -> anyhow::Result<()> {
     drop(send);
     drop(to_enc);
     writer.join().expect("hilo NVENC")?;
+    if let Some(mixer) = mixer {
+        mixer.join().expect("hilo de voz")?;
+        ffmpeg::run(&ffmpeg::mux_args(&video_out, &voice_out, &args[3]))?;
+        std::fs::remove_file(&video_out)?;
+        std::fs::remove_file(&voice_out)?;
+    }
     let render_s = t0.elapsed().as_secs_f64();
 
     println!(

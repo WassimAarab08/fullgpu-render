@@ -3,5 +3,5 @@
 
 @fragment
 fn fs_video(v: VOut) -> @location(0) vec4f {
-  return screen_out(textureSampleBaseClampToEdge(vid, samp, v.uv).rgb, v.px);
+  return screen_out(textureSampleBaseClampToEdge(vid, samp, video_uv(v.uv)).rgb, v.px);
 }

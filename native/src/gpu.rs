@@ -21,8 +21,16 @@ struct DrawUniform {
     quad: [f32; 4],
     rect: [f32; 4],
     color: [f32; 4],
+    color2: [f32; 4],
     params: [f32; 4],
+    extra: [f32; 4],
     canvas: [f32; 4],
+}
+
+impl DrawUniform {
+    fn new(quad: [f32; 4], rect: [f32; 4], color: [f32; 4], params: [f32; 4], canvas: [f32; 4]) -> Self {
+        Self { quad, rect, color, color2: [0.0; 4], params, extra: [0.0; 4], canvas }
+    }
 }
 
 struct SourceTex {
@@ -58,6 +66,7 @@ pub struct Compositor {
     out_uv: wgpu::Texture,
     sources: HashMap<String, SourceTex>,
     texts: HashMap<String, (u32, u32, wgpu::TextureView)>,
+    images: HashMap<String, (u32, u32, wgpu::TextureView)>,
     ring: Vec<Readback>,
 }
 
@@ -151,6 +160,7 @@ impl Compositor {
                 .collect(),
             sources: HashMap::new(),
             texts: HashMap::new(),
+            images: HashMap::new(),
             adapter: info,
             background: hex_color(background),
             device,
@@ -176,11 +186,23 @@ impl Compositor {
         self.sources.remove(name);
     }
 
-    pub fn add_text(&mut self, id: &str, img: &TextImage) {
+    fn rgba_texture(&self, img: &TextImage) -> (u32, u32, wgpu::TextureView) {
         let usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
         let tex = texture(&self.device, img.w, img.h, wgpu::TextureFormat::Rgba8Unorm, usage);
         self.write(&tex, &img.rgba, img.w * 4, img.w, img.h);
-        self.texts.insert(id.into(), (img.w, img.h, tex.create_view(&Default::default())));
+        (img.w, img.h, tex.create_view(&Default::default()))
+    }
+
+    /// Texto ya rasterizado (RGBA premultiplicado).
+    pub fn add_text(&mut self, id: &str, img: &TextImage) {
+        let t = self.rgba_texture(img);
+        self.texts.insert(id.into(), t);
+    }
+
+    /// Imagen (RGBA premultiplicado), dibujada en el quad que indique cada fotograma.
+    pub fn add_image(&mut self, id: &str, img: &TextImage) {
+        let t = self.rgba_texture(img);
+        self.images.insert(id.into(), t);
     }
 
     fn write(&self, tex: &wgpu::Texture, data: &[u8], bytes_per_row: u32, w: u32, h: u32) {
@@ -226,22 +248,29 @@ impl Compositor {
         let samp = wgpu::BindingResource::Sampler(&self.sampler);
         for d in draws {
             match d {
-                Draw::Shape { quad, rect, radius, softness, color, opacity } => {
+                Draw::Shape { quad, rect, radius, softness, color, opacity, gradient } => {
                     let i = uniforms.len() as u64;
-                    uniforms.push(DrawUniform { quad: *quad, rect: *rect, color: *color, params: [*radius, *softness, *opacity, 0.0], canvas });
+                    let mut u = DrawUniform::new(*quad, *rect, *color, [*radius, *softness, *opacity, 0.0], canvas);
+                    if let Some(g) = gradient {
+                        u.color2 = g.to;
+                        u.extra = [g.dir[0], g.dir[1], 1.0, 0.0];
+                    }
+                    uniforms.push(u);
                     groups.push((&self.shape, self.bind(&self.shape, i, &[])));
                 }
-                Draw::Video { source, quad, rect, radius, softness, opacity } => {
+                Draw::Video { source, quad, rect, radius, softness, opacity, uv } => {
                     let i = uniforms.len() as u64;
-                    let (y, uv) = &views[source.as_str()];
+                    let (y_plane, uv_plane) = &views[source.as_str()];
                     let full = if self.sources[source].full_range { 1.0 } else { 0.0 };
-                    uniforms.push(DrawUniform { quad: *quad, rect: *rect, color: [0.0; 4], params: [*radius, *softness, *opacity, full], canvas });
-                    let extra = [(1, samp.clone()), (4, wgpu::BindingResource::TextureView(y)), (5, wgpu::BindingResource::TextureView(uv))];
+                    let mut u = DrawUniform::new(*quad, *rect, [0.0; 4], [*radius, *softness, *opacity, full], canvas);
+                    u.color2 = *uv;
+                    uniforms.push(u);
+                    let extra = [(1, samp.clone()), (4, wgpu::BindingResource::TextureView(y_plane)), (5, wgpu::BindingResource::TextureView(uv_plane))];
                     groups.push((&self.video, self.bind(&self.video, i, &extra)));
                 }
-                Draw::Text { id, cx, cy, opacity, bg, anchor_bottom } => {
+                Draw::Text { id, cx, cy, opacity, bg, anchor_bottom, scale } => {
                     let (w, h, view) = &self.texts[id];
-                    let (w, h) = (*w as f32, *h as f32);
+                    let (w, h) = (*w as f32 * scale, *h as f32 * scale);
                     let pad_y = bg.as_ref().map_or(0.0, |b| b.pad_y);
                     // anchor_bottom: `cy` es el borde inferior (de la píldora si la hay), no el centro.
                     let ty = if *anchor_bottom { cy - pad_y - h / 2.0 } else { *cy };
@@ -249,11 +278,17 @@ impl Compositor {
                     if let Some(b) = bg {
                         let i = uniforms.len() as u64;
                         let pill = [quad[0] - b.pad_x, quad[1] - b.pad_y, w + 2.0 * b.pad_x, h + 2.0 * b.pad_y];
-                        uniforms.push(DrawUniform { quad: pill, rect: pill, color: b.color, params: [b.radius, 1.0, *opacity, 0.0], canvas });
+                        uniforms.push(DrawUniform::new(pill, pill, b.color, [b.radius, 1.0, *opacity, 0.0], canvas));
                         groups.push((&self.shape, self.bind(&self.shape, i, &[])));
                     }
                     let i = uniforms.len() as u64;
-                    uniforms.push(DrawUniform { quad, rect: quad, color: [0.0; 4], params: [0.0, 1.0, *opacity, 0.0], canvas });
+                    uniforms.push(DrawUniform::new(quad, quad, [0.0; 4], [0.0, 1.0, *opacity, 0.0], canvas));
+                    groups.push((&self.image, self.bind(&self.image, i, &[(1, samp.clone()), (2, wgpu::BindingResource::TextureView(view))])));
+                }
+                Draw::Image { id, quad, radius, opacity } => {
+                    let (_, _, view) = &self.images[id];
+                    let i = uniforms.len() as u64;
+                    uniforms.push(DrawUniform::new(*quad, *quad, [0.0; 4], [*radius, 1.0, *opacity, 0.0], canvas));
                     groups.push((&self.image, self.bind(&self.image, i, &[(1, samp.clone()), (2, wgpu::BindingResource::TextureView(view))])));
                 }
             }
@@ -373,6 +408,7 @@ mod tests {
             softness: 1.0,
             color: [0.0, 0.0, 0.0, 1.0],
             opacity: 1.0,
+            gradient: None,
         };
         c.render(&[black], 0);
         let nv12 = c.read(0).unwrap();
@@ -396,11 +432,80 @@ mod tests {
             opacity: 1.0,
             bg: Some(crate::layout::TextBg { color: [0.0, 0.0, 0.0, 1.0], pad_x: 4.0, pad_y: 4.0, radius: 0.0 }),
             anchor_bottom: true,
+            scale: 1.0,
         };
         c.render(&[pill], 0);
         let nv12 = c.read(0).unwrap();
         let y = |x: usize, yy: usize| nv12[yy * 64 + x] as i32;
         assert!((y(32, 26) - 16).abs() <= 1, "dentro de la píldora Y={}", y(32, 26));
         assert!((y(32, 10) - 223).abs() <= 1, "encima de la píldora Y={}", y(32, 10));
+    }
+
+    fn luma(nv12: &[u8], w: usize, x: usize, y: usize) -> i32 {
+        nv12[y * w + x] as i32
+    }
+
+    #[test]
+    #[ignore = "necesita una GPU NVIDIA"]
+    fn pinta_un_degradado_lineal_en_la_direccion_pedida() {
+        let mut c = Compositor::new(64, 32, "#808080").unwrap();
+        let g = Draw::Shape {
+            quad: [0.0, 0.0, 64.0, 32.0],
+            rect: [0.0, 0.0, 64.0, 32.0],
+            radius: 0.0,
+            softness: 1.0,
+            color: [0.0, 0.0, 0.0, 1.0],
+            opacity: 1.0,
+            gradient: Some(crate::layout::Gradient { to: [1.0, 1.0, 1.0, 1.0], dir: [1.0, 0.0] }),
+        };
+        c.render(&[g], 0);
+        let nv12 = c.read(0).unwrap();
+        assert!(luma(&nv12, 64, 2, 16) < 30, "izquierda casi negra: {}", luma(&nv12, 64, 2, 16));
+        assert!(luma(&nv12, 64, 61, 16) > 220, "derecha casi blanca: {}", luma(&nv12, 64, 61, 16));
+        assert!((luma(&nv12, 64, 32, 16) - 126).abs() < 12, "centro gris: {}", luma(&nv12, 64, 32, 16));
+    }
+
+    #[test]
+    #[ignore = "necesita una GPU NVIDIA"]
+    fn recorta_el_video_con_uv() {
+        let mut c = Compositor::new(64, 32, "#808080").unwrap();
+        // Fuente 16x8 NV12: mitad izquierda negra (Y=16), mitad derecha blanca (Y=235), croma neutro.
+        let (w, h) = (16usize, 8usize);
+        let mut nv12 = vec![0u8; w * h * 3 / 2];
+        for y in 0..h {
+            for x in 0..w {
+                nv12[y * w + x] = if x < w / 2 { 16 } else { 235 };
+            }
+        }
+        nv12[w * h..].fill(128);
+        c.add_source("v", w as u32, h as u32, false);
+        c.upload("v", &nv12);
+        let right_half = Draw::Video {
+            source: "v".into(),
+            quad: [0.0, 0.0, 64.0, 32.0],
+            rect: [0.0, 0.0, 64.0, 32.0],
+            radius: 0.0,
+            softness: 1.0,
+            opacity: 1.0,
+            uv: [0.5, 0.0, 1.0, 1.0],
+        };
+        c.render(&[right_half], 0);
+        let out = c.read(0).unwrap();
+        assert!(luma(&out, 64, 4, 16) > 220, "con uv solo se ve la mitad blanca: {}", luma(&out, 64, 4, 16));
+    }
+
+    #[test]
+    #[ignore = "necesita una GPU NVIDIA"]
+    fn escala_el_texto_y_redondea_las_imagenes() {
+        let mut c = Compositor::new(64, 32, "#000000").unwrap();
+        c.add_text("t", &TextImage { w: 8, h: 8, rgba: vec![255; 8 * 8 * 4] });
+        c.add_image("img", &TextImage { w: 8, h: 8, rgba: vec![255; 8 * 8 * 4] });
+        let text = Draw::Text { id: "t".into(), cx: 16.0, cy: 16.0, opacity: 1.0, bg: None, anchor_bottom: false, scale: 2.0 };
+        let img = Draw::Image { id: "img".into(), quad: [40.0, 4.0, 24.0, 24.0], radius: 12.0, opacity: 1.0 };
+        c.render(&[text, img], 0);
+        let out = c.read(0).unwrap();
+        assert!(luma(&out, 64, 10, 16) > 220, "escala 2: el cuadrado de 8 px cubre 16 px");
+        assert!(luma(&out, 64, 52, 16) > 220, "centro de la imagen visible");
+        assert!(luma(&out, 64, 41, 5) < 40, "esquina recortada por el radio");
     }
 }
