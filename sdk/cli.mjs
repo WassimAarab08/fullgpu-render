@@ -123,9 +123,11 @@ async function doctor() {
   checks.push([!!ff?.nvenc, "ffmpeg has h264_nvenc", "Use an ffmpeg build with NVENC (e.g. gyan.dev full on Windows)"]);
   checks.push([!!ff?.cuda, "ffmpeg has CUDA decoding", "Use an ffmpeg build with CUDA hwaccel"]);
   const bin = await findBinary({ download: false });
-  checks.push([!!bin, bin ? `Engine: ${bin}` : "Engine not downloaded yet", "It downloads on the first render, or run: npm run build"]);
-  for (const [ok, label, fix] of checks) console.log(`${ok ? "ok  " : "fail"}  ${label}${ok ? "" : `\n      ${fix}`}`);
-  return checks.every(([ok], i) => ok || i === checks.length - 1);
+  checks.push([!!bin, bin ? `Engine: ${bin}` : "Engine not downloaded yet", "It downloads on the first render (or build it: npm run build)", true]);
+  for (const [ok, label, fix, optional] of checks) {
+    console.log(`${ok ? "ok  " : optional ? "note" : "fail"}  ${label}${ok ? "" : `\n      ${fix}`}`);
+  }
+  return checks.every(([ok, , , optional]) => ok || optional);
 }
 
 export async function main() {
