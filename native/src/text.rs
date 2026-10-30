@@ -20,6 +20,24 @@ impl TextRasterizer {
     }
 
     /// `max_width`: si el texto no cabe, se parte en líneas centradas de ese ancho (subtítulos).
+    /// Peso que hay que pedir a cosmic-text para no salir de `family`: el exacto si existe; si no, el más cercano de esa
+    /// familia (una fuente variable como Bahnschrift solo registra su cara por defecto). Sin esto, un peso inexistente
+    /// hace que cosmic-text cambie de familia (Bahnschrift 600 -> Segoe UI Semibold).
+    fn nearest_weight(&self, family: &str, wanted: u16) -> u16 {
+        let weights: Vec<u16> = self
+            .fonts
+            .db()
+            .faces()
+            .filter(|f| f.families.iter().any(|(n, _)| n.eq_ignore_ascii_case(family)))
+            .map(|f| f.weight.0)
+            .collect();
+        match weights.as_slice() {
+            [] => wanted,
+            w if w.contains(&wanted) => wanted,
+            w => *w.iter().min_by_key(|x| (**x as i32 - wanted as i32).abs()).unwrap(),
+        }
+    }
+
     pub fn raster(&mut self, text: &str, size: f32, color: [f32; 4], weight: u16, max_width: Option<f32>) -> TextImage {
         self.raster_with(text, size, color, weight, max_width, None)
     }
@@ -29,7 +47,8 @@ impl TextRasterizer {
         const PAD: i32 = 8;
         let line_h = (size * if max_width.is_some() { 1.3 } else { 1.6 }).ceil();
         let mut buf = Buffer::new(&mut self.fonts, Metrics::new(size, line_h));
-        let attrs = Attrs::new().family(Family::Name(family.unwrap_or("Segoe UI"))).weight(Weight(weight));
+        let name = family.unwrap_or("Segoe UI");
+        let attrs = Attrs::new().family(Family::Name(name)).weight(Weight(self.nearest_weight(name, weight)));
         buf.set_size(&mut self.fonts, None, None);
         buf.set_text(&mut self.fonts, text, &attrs, Shaping::Advanced, None);
         buf.shape_until_scroll(&mut self.fonts, false);
@@ -117,5 +136,14 @@ mod tests {
         let prop_narrow = t.raster("iiiiiiii", 32.0, [1.0; 4], 400, None);
         let prop_wide = t.raster("MMMMMMMM", 32.0, [1.0; 4], 400, None);
         assert!(prop_wide.w > prop_narrow.w * 2, "Segoe UI es proporcional");
+    }
+
+    #[test]
+    fn un_peso_que_la_familia_no_tiene_usa_el_mas_cercano_de_esa_familia() {
+        // Consolas no tiene peso 600: debe usar Consolas (monoespaciada), no saltar a Segoe UI Semibold.
+        let mut t = TextRasterizer::new();
+        let narrow = t.raster_with("iiiiiiii", 32.0, [1.0; 4], 600, None, Some("Consolas"));
+        let wide = t.raster_with("MMMMMMMM", 32.0, [1.0; 4], 600, None, Some("Consolas"));
+        assert!((narrow.w as i32 - wide.w as i32).abs() <= 2, "{} vs {}", narrow.w, wide.w);
     }
 }
