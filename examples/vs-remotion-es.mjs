@@ -93,15 +93,18 @@ function timeline(frame) {
 }
 
 // ── Apertura: Remotion vs fullgpu-render ───────────────────────────────────────────────────
-// El competidor aparece con su nombre compuesto en tipografía neutra, no con su logotipo.
+// Si existe media/remotion-logo.png (no se distribuye con el repo) se usa; si no, el nombre en tipografía neutra.
+const REMOTION_LOGO = "media/remotion-logo.png";
 const versus = (f) => {
   const tile = (x, from, node) => clip(f, from, node, 0);
   const vs = prog(f, 10, 14);
   return [
     tile(M, 4, [
       rect({ x: M, y: 330, width: 400, height: 400, radius: 56, color: "#D3D8E0" }),
-      display("Remotion", M + 200 - 150, 530, 70, GRAPHITE, 400),
-      body("Chrome + capturas", M + 200 - 105, 640, 26, GRAPHITE),
+      existsSync(REMOTION_LOGO)
+        ? [image({ src: REMOTION_LOGO, x: M + 200 - 70, y: 380, width: 140, height: 140 }), display("Remotion", M + 200 - 105, 600, 44, INK, 400)]
+        : display("Remotion", M + 200 - 150, 530, 70, GRAPHITE, 400),
+      body("Chrome + capturas", M + 200 - 105, 660, 26, GRAPHITE),
     ]),
     group({ opacity: vs }, [display("vs", W / 2 - 36, 530, 64, GRAPHITE, 400)]),
     tile(W - M - 400, 16, [
