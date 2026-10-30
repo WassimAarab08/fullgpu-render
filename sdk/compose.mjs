@@ -38,7 +38,7 @@ const rgba = (css) => {
 const hex = (css) => "#" + parseColor(css).slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 const even = (v) => Math.max(2, Math.ceil(v / 2) * 2);
 
-function ffprobeSize(file) {
+export function probeSize(file) {
   const out = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", file]);
   const [w, h] = String(out).trim().split("x").map(Number);
   return { w, h };
@@ -46,9 +46,10 @@ function ffprobeSize(file) {
 
 /**
  * Compila una composición. `mediaRoot` es la carpeta desde la que se resuelven `src`; `probe(src)` devuelve el tamaño
- * de un vídeo (por defecto ffprobe).
+ * de un vídeo (por defecto ffprobe). `range: [inicio, fin)` compila solo esos fotogramas (fotogramas sueltos, tramos):
+ * vídeo y audio se reajustan para que el fotograma `inicio` sea el 0 de la salida.
  */
-export async function compile(comp, { mediaRoot = ".", probe = async (src) => ffprobeSize(`${mediaRoot}/${src}`) } = {}) {
+export async function compile(comp, { mediaRoot = ".", probe = async (src) => probeSize(`${mediaRoot}/${src}`), range } = {}) {
   const { width, height, fps, durationInFrames, background, render } = comp;
   const texts = [];
   const textIds = new Map();
@@ -75,7 +76,8 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
   };
 
   const frames = [];
-  for (let f = 0; f < durationInFrames; f++) {
+  const [first, last] = range ?? [0, durationInFrames];
+  for (let f = Math.max(0, first); f < Math.min(last, durationInFrames); f++) {
     const draws = [];
     const ctx = { frame: f, start: 0, end: durationInFrames, tx: 0, ty: 0, s: 1, o: 1 };
     const tree = await render({ frame: f, fps, width, height, durationInFrames });
@@ -208,6 +210,26 @@ export async function compile(comp, { mediaRoot = ".", probe = async (src) => ff
       }
       default:
         throw new Error(`nodo desconocido: ${node.type}`);
+    }
+  }
+
+  if (first > 0) {
+    for (const s of streams.values()) {
+      const skip = first - s.from;
+      if (skip > 0) {
+        s.srcStartSec += (skip / fps) * s.rate;
+        s.frames -= skip;
+        s.from = 0;
+      } else s.from = -skip;
+    }
+    for (const [key, c] of clips) {
+      c.fromSec -= first / fps;
+      if (c.fromSec < 0) {
+        c.srcStartSec -= c.fromSec;
+        c.durationSec += c.fromSec;
+        c.fromSec = 0;
+      }
+      if (c.durationSec <= 0) clips.delete(key);
     }
   }
 

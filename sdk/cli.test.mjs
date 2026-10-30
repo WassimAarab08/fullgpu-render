@@ -2,12 +2,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolve as resolvePath } from "node:path";
-import { parseArgs, assetName, binaryCandidates, releaseUrl, inspectFfmpeg, cacheDir, defaultMediaRoot } from "./cli.mjs";
+import { parseArgs, assetName, binaryCandidates, releaseUrl, inspectFfmpeg, cacheDir, defaultMediaRoot, stillPath, pickComposition, checkLayout } from "./cli.mjs";
 
 test("parseArgs: render con composición, salida y carpeta de medios opcional", () => {
-  assert.deepEqual(parseArgs(["render", "video.mjs", "out.mp4"]), { command: "render", entry: "video.mjs", out: "out.mp4", mediaRoot: undefined });
-  assert.deepEqual(parseArgs(["render", "v.mjs", "o.mp4", "--media-root", "assets"]).mediaRoot, "assets");
+  assert.deepEqual(parseArgs(["render", "video.mjs", "out.mp4"]), { command: "render", entry: "video.mjs", compositionId: undefined, out: "out.mp4", mediaRoot: undefined, props: undefined, json: false });
+  assert.equal(parseArgs(["render", "v.mjs", "o.mp4", "--media-root", "assets"]).mediaRoot, "assets");
   assert.equal(parseArgs(["doctor"]).command, "doctor");
+  assert.equal(parseArgs(["doctor", "--json"]).json, true);
   assert.equal(parseArgs(["--version"]).command, "version");
   assert.equal(parseArgs([]).command, "help");
   assert.equal(parseArgs(["--help"]).command, "help");
@@ -54,8 +55,8 @@ test("inspectFfmpeg detecta NVENC y CUDA en la salida de ffmpeg", () => {
 });
 
 test("parseArgs: proyecto React/Remotion con id de composición, props JSON y carpeta public", () => {
-  assert.deepEqual(parseArgs(["render", "src/index.tsx", "Bench", "out.mp4"]), {
-    command: "render", entry: "src/index.tsx", compositionId: "Bench", out: "out.mp4", mediaRoot: undefined, props: undefined,
+  assert.deepEqual(parseArgs(["render", "src/index.tsx", "Bench", "out.mp4", "--json"]), {
+    command: "render", entry: "src/index.tsx", compositionId: "Bench", out: "out.mp4", mediaRoot: undefined, props: undefined, json: true,
   });
   const a = parseArgs(["render", "src/index.tsx", "Title", "o.mp4", "--props", '{"title":"Hola"}', "--public-dir", "public"]);
   assert.deepEqual(a.props, { title: "Hola" });
@@ -68,4 +69,46 @@ test("defaultMediaRoot: --media-root si se da; si no, public/ del proyecto (como
   assert.equal(defaultMediaRoot({ react: true, cwd: "/p", exists: (d) => d.endsWith("public") }), resolvePath("/p", "public"));
   assert.equal(defaultMediaRoot({ react: true, cwd: "/p", exists: () => false }), resolvePath("/p"));
   assert.equal(defaultMediaRoot({ react: false, cwd: "/p", exists: () => true }), resolvePath("/p"));
+});
+
+test("parseArgs: still con uno o varios fotogramas, compositions y check", () => {
+  const a = parseArgs(["still", "src/index.tsx", "Promo", "shot.png", "--frame", "0,45,90"]);
+  assert.deepEqual([a.command, a.entry, a.compositionId, a.out, a.frames], ["still", "src/index.tsx", "Promo", "shot.png", [0, 45, 90]]);
+  assert.deepEqual(parseArgs(["still", "v.mjs", "shot.png"]).frames, [0]);
+  assert.throws(() => parseArgs(["still", "v.mjs", "s.png", "--frame", "x"]), /--frame/);
+  assert.throws(() => parseArgs(["still", "v.mjs"]), /output/);
+  assert.deepEqual(parseArgs(["compositions", "src/index.tsx", "--json"]), { command: "compositions", entry: "src/index.tsx", json: true });
+  const c = parseArgs(["check", "src/index.tsx", "Promo", "--public-dir", "public"]);
+  assert.deepEqual([c.command, c.entry, c.compositionId, c.mediaRoot, c.json], ["check", "src/index.tsx", "Promo", "public", false]);
+  assert.equal(parseArgs(["check", "v.mjs"]).compositionId, undefined);
+  assert.throws(() => parseArgs(["compositions"]), /entry/);
+});
+
+test("stillPath: un fotograma usa el nombre tal cual; varios llevan el número", () => {
+  assert.equal(stillPath("out/shot.png", 45, false), "out/shot.png");
+  assert.equal(stillPath("out/shot.png", 45, true), "out/shot-45.png");
+  assert.equal(stillPath("shot", 3, true), "shot-3.png");
+});
+
+test("pickComposition: por id, la única si no se da id, y error con las disponibles", () => {
+  const comps = [{ id: "A" }, { id: "B" }];
+  assert.equal(pickComposition(comps, "B").id, "B");
+  assert.equal(pickComposition([{ id: "Solo" }], undefined).id, "Solo");
+  assert.throws(() => pickComposition(comps, undefined), /A, B/);
+  assert.throws(() => pickComposition(comps, "C"), /No composition "C".*A, B/);
+});
+
+test("checkLayout: medios que faltan y fotogramas con demasiadas primitivas", () => {
+  const layout = {
+    streams: [{ file: "clip.mp4" }],
+    images: [{ file: "logo.png" }],
+    audio: { file: "voz.mp3" },
+    frames: [{ draws: new Array(3) }, { draws: new Array(600) }],
+  };
+  const r = checkLayout(layout, { exists: (f) => f.endsWith("clip.mp4"), mediaRoot: "/m" });
+  assert.deepEqual(r.missing, ["logo.png", "voz.mp3"]);
+  assert.equal(r.maxDraws, 600);
+  assert.equal(r.errors.length, 3);
+  assert.match(r.errors.at(-1), /600 draws in frame 1.*512/);
+  assert.deepEqual(checkLayout({ streams: [], images: [], audio: null, frames: [{ draws: [] }] }, { exists: () => true, mediaRoot: "/m" }).errors, []);
 });

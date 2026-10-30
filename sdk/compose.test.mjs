@@ -157,3 +157,23 @@ test("rect: border dibuja un trazo encima del relleno; sin color ni degradado so
   const only = await draws(() => rect({ x: 0, y: 0, width: 50, height: 30, border: { width: 1, color: "#000" } }));
   assert.deepEqual(only.map((d) => d.stroke), [1]);
 });
+
+test("compile con range: solo esos fotogramas, con vídeo y audio reajustados al inicio del tramo", async () => {
+  const c = composition({ width: 200, height: 100, fps: 30, durationInFrames: 100 }, () =>
+    sequence({ from: 10 }, () => [
+      video({ src: "v.mp4", x: 0, y: 0, width: 10, height: 10, startFrom: 1, playbackRate: 2 }),
+      audio({ src: "a.mp3", startFrom: 0.5 }),
+    ]),
+  );
+  const out = await compile(c, { probe, range: [40, 41] });
+  assert.equal(out.frames.length, 1);
+  const [s] = out.streams;
+  assert.deepEqual([s.from, s.frames], [0, 60]);
+  close(s.srcStartSec, 1 + (30 / 30) * 2);
+  const [clip] = out.audio.clips;
+  close(clip.fromSec, 0);
+  close(clip.srcStartSec, 1.5);
+  close(clip.durationSec, 2);
+  const early = await compile(c, { probe, range: [0, 5] });
+  assert.deepEqual(early.streams, [], "un vídeo que empieza después del tramo no se decodifica");
+});
