@@ -23,30 +23,30 @@ const WHITE = "#FFFFFF";
 const DISPLAY = "Bahnschrift";
 const CODE = "Cascadia Code";
 
-// Segundo en que empieza cada frase de la locución.
+// Segundo en que empieza cada frase de la locución (medido con silencedetect sobre la grabación).
 const S = {
   usas: 0.0,
-  barra: 3.0,
-  chrome: 5.6,
-  captura: 9.1,
-  portatil: 11.6,
-  cero: 14.2,
-  medi: 16.3,
-  doscientos: 19.0,
-  hice: 21.8,
-  escribes: 24.0,
-  spring: 25.6,
-  interpolate: 26.4,
-  secuencias: 27.4,
-  sinNavegador: 29.0,
-  dentroGPU: 30.6,
-  mismoMinuto: 33.0,
-  ocho: 34.6,
-  veintitres: 36.4,
-  todavia: 39.0,
-  abierto: 41.5,
-  enlace: 44.0,
-  fin: 47.5,
+  barra: 3.07,
+  chrome: 5.58,
+  captura: 9.14,
+  portatil: 11.58,
+  cero: 14.48,
+  medi: 16.33,
+  doscientos: 20.69,
+  hice: 22.76,
+  escribes: 25.1,
+  spring: 26.7,
+  interpolate: 27.5,
+  secuencias: 28.4,
+  sinNavegador: 29.48,
+  dentroGPU: 30.86,
+  mismoMinuto: 33.24,
+  ocho: 34.81,
+  veintitres: 35.2,
+  todavia: 36.87,
+  abierto: 39.12,
+  enlace: 42.03,
+  fin: 45.5,
 };
 const LEAD = 12;
 const CUE = Object.fromEntries(Object.entries(S).map(([k, s]) => [k, LEAD + Math.round(s * FPS)]));
@@ -92,18 +92,40 @@ function timeline(frame) {
   ];
 }
 
+// ── Apertura: Remotion vs fullgpu-render ───────────────────────────────────────────────────
+// El competidor aparece con su nombre compuesto en tipografía neutra, no con su logotipo.
+const versus = (f) => {
+  const tile = (x, from, node) => clip(f, from, node, 0);
+  const vs = prog(f, 10, 14);
+  return [
+    tile(M, 4, [
+      rect({ x: M, y: 330, width: 400, height: 400, radius: 56, color: "#D3D8E0" }),
+      display("Remotion", M + 200 - 150, 530, 70, GRAPHITE, 400),
+      body("Chrome + capturas", M + 200 - 105, 640, 26, GRAPHITE),
+    ]),
+    group({ opacity: vs }, [display("vs", W / 2 - 36, 530, 64, GRAPHITE, 400)]),
+    tile(W - M - 400, 16, [
+      rect({ x: W - M - 400, y: 330, width: 400, height: 400, radius: 56, color: INK }),
+      image({ src: "docs/logo.png", x: W - M - 200 - 70, y: 380, width: 140, height: 140, radius: 32 }),
+      display("fullgpu-render", W - M - 200 - 150, 600, 44, WHITE, 400),
+      body("Todo en la GPU", W - M - 200 - 90, 660, 26, "#9FB0FF"),
+    ]),
+    clip(f, 30, display("Si usas Remotion o HyperFrames,", M, 860, 58, INK)),
+  ];
+};
+
 // ── Remotion ───────────────────────────────────────────────────────────────────────────────
 const progressBar = (f) => {
   const p = interpolate(f, [CUE.usas, CUE.chrome], [0.061, 0.083], clamp);
   return [
-    clip(f, CUE.usas + 4, display("Si usas Remotion,", M, 300, 88, INK)),
-    clip(f, CUE.barra, display("esta barra te suena.", M, 400, 88, INK)),
-    clip(f, CUE.usas + 14, [
+    clip(f, CUE.barra, display("Esta barra", M, 300, 88, INK)),
+    clip(f, CUE.barra + 4, display("te suena.", M, 400, 88, INK)),
+    clip(f, CUE.barra + 10, [
       body("Renderizando fotogramas", M, 640, 28, GRAPHITE),
       display(`${Math.round(6816 * p).toLocaleString("es-ES")} de 6.816`, M, 715, 64, INK, 600),
       rect({ x: M, y: 790, width: W - 2 * M, height: 30, radius: 15, color: "#D3D8E0" }),
       rect({ x: M, y: 790, width: (W - 2 * M) * p, height: 30, radius: 15, color: SLOW }),
-      body(`Tiempo restante: ${9 - Math.floor((f - CUE.usas) / 90)} min`, M, 870, 28, GRAPHITE),
+      body(`Tiempo restante: ${9 - Math.floor((f - CUE.barra) / 90)} min`, M, 870, 28, GRAPHITE),
     ]),
   ];
 };
@@ -114,8 +136,9 @@ const capture = (f) => {
   const every = 11; // un fotograma capturado cada 11 fotogramas de vídeo: lento a propósito
   const shotIndex = Math.floor((f - CUE.chrome - 10) / every);
   return [
-    clip(f, CUE.chrome, display("Abre un Chrome invisible", M, 300, 72, INK)),
-    clip(f, CUE.captura, display("y captura cada fotograma.", M, 385, 72, INK)),
+    clip(f, CUE.chrome, body("Remotion y HyperFrames renderizan igual:", M, 240, 32, GRAPHITE)),
+    clip(f, CUE.chrome + 26, display("abren un Chrome invisible", M, 320, 72, INK)),
+    clip(f, CUE.captura, display("y capturan cada fotograma.", M, 405, 72, INK)),
     ...Array.from({ length: cells }, (_, i) => {
       const n = shotIndex - (cells - 1 - i);
       const taken = n >= 0;
@@ -123,8 +146,7 @@ const capture = (f) => {
       const x = M + i * (cellW + 12);
       return [
         rect({ x, y: 560, width: cellW, height: 190, radius: 10, color: flash ? WHITE : taken ? "#CBD1DA" : "#DCE0E7" }),
-        taken && !flash && rect({ x: x + 14, y: 582, width: cellW - 28, height: 92, radius: 6, color: "#B6BECA" }),
-        taken && !flash && rect({ x: x + 14, y: 690, width: (cellW - 28) * 0.7, height: 10, radius: 5, color: "#B6BECA" }),
+        taken && !flash && image({ src: `out/thumbs/f${n % 7}.png`, x: x + 8, y: 568, width: cellW - 16, height: 174, radius: 6 }),
       ];
     }),
     clip(f, CUE.chrome + 20, [
@@ -136,9 +158,11 @@ const capture = (f) => {
 };
 
 const gpuIdle = (f) => [
-  clip(f, CUE.portatil, display("Y la tarjeta gráfica,", M, 300, 72, INK)),
-  clip(f, CUE.portatil + 6, body("Uso de la GPU (RTX 4050 del portátil)", M, 520, 30, GRAPHITE)),
-  clip(f, CUE.cero, display("0 %", M - 8, 720, 300, INK, 700), 120),
+  clip(f, CUE.portatil, display("Mientras tanto,", M, 300, 72, INK)),
+  clip(f, CUE.portatil + 20, display("tu tarjeta gráfica…", M, 385, 72, INK)),
+  clip(f, CUE.portatil + 6, body("Uso de la GPU (RTX 4050 del portátil)", M, 570, 30, GRAPHITE)),
+  clip(f, CUE.cero, display("mirando.", M, 470, 72, GRAPHITE)),
+  clip(f, CUE.cero, display("0 %", M - 8, 740, 300, INK, 700), 120),
   clip(f, CUE.portatil + 10, [
     rect({ x: M, y: 930, width: W - 2 * M, height: 2, color: INK }),
     body("Mientras tanto la CPU, al 52 %.", M, 990, 30, GRAPHITE),
@@ -148,8 +172,8 @@ const gpuIdle = (f) => [
 const measured = (f) => {
   const v = interpolate(f, [CUE.doscientos - 30, CUE.doscientos + 18], [0, 204.1], { ...clamp, easing: Easing.inOut(Easing.cubic) });
   return [
-    clip(f, CUE.medi, display("Una escena de un minuto.", M, 300, 72, INK)),
-    clip(f, CUE.medi + 8, body("Lo medí en mi portátil.", M, 380, 34, GRAPHITE)),
+    clip(f, CUE.medi, display("Lo medí en mi portátil:", M, 300, 72, INK)),
+    clip(f, CUE.medi + 30, body("la misma escena de un minuto, en Remotion.", M, 380, 34, GRAPHITE)),
     clip(f, CUE.doscientos - 30, display(seconds(v), M - 6, 640, 230, INK, 700), 0),
     clip(f, CUE.doscientos + 10, code("npx remotion render --concurrency=8", M, 840, GRAPHITE, 26)),
   ];
@@ -173,7 +197,8 @@ const sameCode = (f) => {
       rect({ x: M, y, width: W - 2 * M, height: 270, radius: 18, color: SIGNAL_DEEP }),
       body(title, M + 34, y + 44, 26, "#C9D3FF", 600),
       ...CODE_LINES.map((l, i) => {
-        const lit = f >= CUE[l[2]] && f < CUE[l[2]] + 40;
+        const next = CODE_LINES[i + 1] ? CUE[CODE_LINES[i + 1][2]] : CUE.sinNavegador;
+        const lit = f >= CUE[l[2]] && f < next; // cada línea se ilumina mientras se nombra
         return [
           lit && rect({ x: M + 18, y: y + 82 + i * 58, width: W - 2 * M - 36, height: 50, radius: 10, color: "rgba(255,255,255,0.16)" }),
           code(l[col], M + 34, y + 108 + i * 58, WHITE, 27),
@@ -182,7 +207,7 @@ const sameCode = (f) => {
     ]);
   const noBrowser = prog(f, CUE.sinNavegador, 14);
   return [
-    clip(f, CUE.escribes, display("Escribes como ya sabes.", M, 260, 72, WHITE)),
+    clip(f, CUE.escribes, display("Escribes igual que ya sabes.", M, 260, 72, WHITE)),
     panel(360, "Remotion", 0, CUE.escribes + 8),
     panel(660, "fullgpu-render", 1, CUE.escribes + 14),
     group({ opacity: noBrowser, x: (1 - noBrowser) * 70 }, [display("Pero sin navegador.", M, 1060, 64, WHITE)]),
@@ -230,7 +255,7 @@ const result = (f) => {
 
 const honest = (f) => [
   clip(f, CUE.todavia, display("Todavía no hace todo", M, 280, 72, WHITE)),
-  clip(f, CUE.todavia + 4, display("lo que hace Remotion.", M, 360, 72, WHITE)),
+  clip(f, CUE.todavia + 4, display("lo que hacen ellos.", M, 360, 72, WHITE)),
   clip(f, CUE.todavia + 16, [
     body("Ya hace texto, formas, imágenes, vídeo y audio.", M, 490, 32, WHITE),
     body("Aún no hace HTML y CSS libres, y necesita una NVIDIA.", M, 545, 32, "#C9D3FF"),
@@ -253,7 +278,8 @@ export default composition({ width: W, height: H, fps: FPS, durationInFrames: TO
     rect({ x: sweep, y: 0, width: W, height: H, color: SIGNAL }),
     existsSync(VOICE) && audio({ src: VOICE, from: LEAD }),
     group({ y: 110 }, [ // el contenido ocupa el centro óptico del 4:5; la regla queda arriba
-    shot(0, CUE.chrome - 4, progressBar),
+    shot(0, CUE.barra - 2, versus),
+    shot(CUE.barra - 4, CUE.chrome - 4, progressBar),
     shot(CUE.chrome - 6, CUE.portatil - 4, capture),
     shot(CUE.portatil - 6, CUE.medi - 4, gpuIdle),
     shot(CUE.medi - 6, CUE.hice + 4, measured),
