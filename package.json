@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "esbuild": "0.28.2",
-    "mediabunny": "1.62.0",
+    "mediabunny": "1.62.1",
     "yoga-layout": "3.2.1"
   },
   "private": false
