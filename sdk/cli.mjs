@@ -5,7 +5,7 @@
 // El binario nativo se busca en FULLGPU_BIN, en native/target/release (compilación local) y en la caché del usuario;
 // si no está, se descarga de la release de GitHub que corresponde a la versión del paquete.
 import { spawnSync, execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, chmodSync, rmSync, realpathSync } from "node:fs";
 import { resolve, dirname, join, basename, extname } from "node:path";
 import { tmpdir, homedir } from "node:os";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -30,7 +30,10 @@ Options:
   --props <json>        input props for a Remotion composition
   --public-dir <dir>    where media paths and staticFile() resolve (alias: --media-root)
                         default: ./public for Remotion entries if it exists, otherwise the current directory
-  --json                print one JSON object on stdout ({ "ok": true|false, ... })`;
+  --json                print one JSON object on stdout ({ "ok": true|false, ... })
+
+Environment:
+  FULLGPU_BIN           path to an engine binary to use instead of the downloaded one`;
 
 const COMMANDS = {
   render: { positional: [2, 3], out: true },
@@ -121,6 +124,11 @@ export function stillPath(out, frame, many) {
   return `${out.slice(0, out.length - extname(out).length)}-${frame}${ext}`;
 }
 
+/** Error cuando no hay motor para esta versión: qué falta y cómo seguir. */
+export function engineMissingMessage(version, status) {
+  return `Could not download the engine for v${version} (HTTP ${status}): that release may not have binaries yet, or there is no network. Set FULLGPU_BIN to an engine binary, or build one from a checkout of the repository (npm run build)`;
+}
+
 /** La composición pedida, o la única si no se indica id. */
 export function pickComposition(comps, id) {
   const ids = comps.map((c) => c.id).join(", ") || "none";
@@ -158,7 +166,7 @@ async function findBinary({ download = true } = {}) {
   const url = releaseUrl(version(), basename(target));
   console.error(`Downloading the engine (${basename(target)}) from ${url}`);
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Could not download the engine (${res.status}). Build it with: npm run build`);
+  if (!res.ok) throw new Error(engineMissingMessage(version(), res.status));
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, Buffer.from(await res.arrayBuffer()));
   if (process.platform !== "win32") chmodSync(target, 0o755);
@@ -188,8 +196,8 @@ async function loadEntry(entry) {
 const estimateText = async (specs) => specs.map((s) => ({ width: s.text.length * s.fontSize * 0.55, lines: 1, normalLineHeight: s.fontSize * 1.2 }));
 
 /**
- * Prepara la composición a compilar. `download`: si falta el motor, se descarga (render, still) o los textos se
- * estiman sin él (check).
+ * Prepara la composición a compilar. Si falta el motor se descarga; si no se puede, `download: false` (check) sigue
+ * con los textos estimados en lugar de fallar.
  */
 async function prepare(args, { download }) {
   const { kind, comps } = await loadEntry(args.entry);
@@ -205,7 +213,14 @@ async function prepare(args, { download }) {
     if (meta?.props) props = meta.props;
   }
   const { reactComposition } = await import("./react/project.mjs");
-  const exe = await findBinary({ download });
+  let exe = null;
+  let missing = "";
+  try {
+    exe = await findBinary({ download: true });
+  } catch (e) {
+    if (download) throw e;
+    missing = e.message;
+  }
   let measure = estimateText;
   let done = async () => {};
   if (exe) {
@@ -213,7 +228,7 @@ async function prepare(args, { download }) {
     const m = startMeasurer(exe);
     measure = m.measure;
     done = m.close;
-  } else warnings.add("text sizes are estimated: the engine is not downloaded yet (run a render once, or npm run build)");
+  } else warnings.add(`text sizes are estimated because the engine is not available, so line breaks may differ from the render (${missing})`);
   const comp = reactComposition(info, { props, measure, warn: (msg) => warnings.add(msg) });
   return { info, comp, mediaRoot, warnings, done };
 }
@@ -249,7 +264,7 @@ async function render(args) {
   const stats = await runEngine(layout, p.mediaRoot, args.out, p.info.id);
   const { width, height, fps } = layout.scene;
   return {
-    result: { out: args.out, composition: p.info.id, frames: layout.frames.length, width, height, fps, compileSeconds: seconds(compileMs), renderFps: Math.round(stats.fps ?? 0), totalSeconds: seconds(performance.now() - t0), warnings: [...p.warnings] },
+    result: { out: args.out, composition: p.info.id, frames: layout.frames.length, durationSeconds: layout.frames.length / fps, width, height, fps, compileSeconds: seconds(compileMs), renderFps: Math.round(stats.fps ?? 0), totalSeconds: seconds(performance.now() - t0), warnings: [...p.warnings] },
     text: `${args.out}: ${layout.frames.length} frames, compiled in ${(compileMs / 1000).toFixed(1)} s, rendered at ${Math.round(stats.fps ?? 0)} fps (total ${((performance.now() - t0) / 1000).toFixed(1)} s)`,
   };
 }
@@ -299,7 +314,7 @@ async function check(args) {
     ...warnings.map((w) => `warning: ${w}`),
     r.errors.length ? "Not renderable: fix the errors above." : warnings.length ? "Renderable, with the warnings above (those effects are skipped)." : "Renderable, nothing unsupported found.",
   ];
-  return { ok: r.errors.length === 0, result: { composition: p.info.id, frames: layout.frames.length, maxDraws: r.maxDraws, missing: r.missing, errors: r.errors, warnings }, text: lines.join("\n") };
+  return { ok: r.errors.length === 0, result: { composition: p.info.id, frames: layout.frames.length, durationSeconds: layout.frames.length / layout.scene.fps, maxDraws: r.maxDraws, missing: r.missing, errors: r.errors, warnings }, text: lines.join("\n") };
 }
 
 function run(cmd, args) {
@@ -358,5 +373,14 @@ export async function main(argv = process.argv.slice(2)) {
   }
 }
 
-const cliArg = process.argv[1] ? resolve(process.argv[1]) : "";
-if (cliArg === fileURLToPath(import.meta.url) || /[\\/]fullgpu(\.cmd|\.ps1)?$/.test(cliArg)) main();
+// Se ejecuta como programa también a través de enlaces (npm link, instalación desde una carpeta, pnpm): se comparan
+// rutas reales, no la del enlace.
+const real = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+const cliArg = process.argv[1] ? real(resolve(process.argv[1])) : "";
+if (cliArg === real(fileURLToPath(import.meta.url)) || /[\\/]fullgpu(\.cmd|\.ps1)?$/.test(process.argv[1] ?? "")) main();

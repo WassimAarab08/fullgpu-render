@@ -12,7 +12,8 @@ of two ways:
    are evaluated per frame by an own runtime and laid out with flexbox; a subset of HTML/CSS is supported (listed below).
 
 Requirements: an NVIDIA GPU on Windows or Linux x64, `ffmpeg` with `h264_nvenc` and CUDA on the PATH, Node 22+.
-`npx fullgpu doctor` checks all of it. The native engine downloads on first use (no Rust needed).
+`npx fullgpu doctor` checks all of it. The native engine downloads on first use (no Rust needed). If it cannot be
+downloaded (no network, or a version without published binaries), set `FULLGPU_BIN` to an engine binary.
 
 ## Install
 
@@ -20,6 +21,9 @@ Requirements: an NVIDIA GPU on Windows or Linux x64, `ffmpeg` with `h264_nvenc` 
 npm install github:WassimAarab08/fullgpu-render
 npx fullgpu doctor
 ```
+
+npm may warn that esbuild's install script is not allowed (`allow-scripts`). It is harmless: esbuild works without
+it. A Remotion entry needs no `package.json`, `react`, `remotion` or `tsconfig` of its own; those imports are provided.
 
 ## CLI
 
@@ -42,6 +46,9 @@ Options:
   --public-dir <dir>    where media paths and staticFile() resolve (alias: --media-root)
                         default: ./public for Remotion entries if it exists, otherwise the current directory
   --json                print one JSON object on stdout ({ "ok": true|false, ... })
+
+Environment:
+  FULLGPU_BIN           path to an engine binary to use instead of the downloaded one
 ```
 
 ### JSON output (`--json`)
@@ -49,11 +56,12 @@ Options:
 Every command prints exactly one JSON object on stdout. Engine logs go to stderr.
 
 - `ok: true` plus the result, or `ok: false` plus `error` (a sentence that says what to change).
-- `render`: `{ ok, command, out, composition, frames, width, height, fps, compileSeconds, renderFps, totalSeconds, warnings }`
+- `render`: `{ ok, command, out, composition, frames, durationSeconds, width, height, fps, compileSeconds, renderFps, totalSeconds, warnings }`
 - `still`: `{ ok, command, composition, files: ["shot-0.png", ...], frames, warnings }`
 - `compositions`: `{ ok, command, compositions: [{ id, width, height, fps, durationInFrames }] }`
-- `check`: `{ ok, command, composition, frames, maxDraws, missing, errors, warnings }`. `ok` is false when it would not
-  render (missing media, too many draws in a frame); `warnings` are effects that will be skipped.
+- `check`: `{ ok, command, composition, frames, durationSeconds, maxDraws, missing, errors, warnings }`. `ok` is false when it would not
+  render (missing media, too many draws in a frame); `warnings` are effects that will be skipped. If the engine is not
+  available, `check` still runs with estimated text sizes and says so in a warning: line breaks may then differ.
 - `doctor`: `{ ok, command, checks: [{ ok, label, fix, optional }] }`
 
 Exit codes: 0 success, 1 failure (or `check` found errors), 2 wrong arguments.
@@ -142,7 +150,8 @@ Semantics to keep in mind:
   `style={{ width: "100%", height: "100%" }}`. Its audio track is not mixed: add an `<Audio>` with the same file.
 - `<Audio>`: one source file per video; `volume` and `playbackRate` are ignored (with a warning).
 - `<Img>`: stretched to its box (`objectFit` other than `fill` is ignored).
-- `<Sequence>` wraps children in an `AbsoluteFill` unless `layout="none"`, like Remotion.
+- `<Sequence>` wraps children in an `AbsoluteFill` unless `layout="none"`, like Remotion, and `useCurrentFrame()`
+  inside it starts at 0 at the sequence's `from`. `useVideoConfig().durationInFrames` is the sequence's duration.
 
 ### CSS
 
@@ -150,11 +159,15 @@ Style properties the layout reads: `alignContent`, `alignItems`, `alignSelf`, `a
 
 - Values: numbers are px; strings may use `px`, `%`, `em`, `rem`. No `calc()`, `vw`, `vh`.
 - Layout is flexbox (Yoga). `display: block` (the default) stacks children vertically and stretches them; `display:
-  flex` defaults to `flexDirection: "row"` like the web. `position: absolute` is relative to the parent box.
+  flex` defaults to `flexDirection: "row"` like the web. `position: absolute` is relative to the parent box;
+  `left` + `right` (or `top` + `bottom`) without a size stretch the box between them, as in CSS.
 - Browser defaults that apply: text is black, 16 px, `"Times New Roman", serif`, weight 400, `line-height: normal`;
   `h1`, `h2`, `h3`, `p`, `strong`, `b` have their usual sizes, weights and margins. Set `fontFamily` explicitly.
 - Text: a paragraph is one run. Children like `<span>` or `<strong>` are merged into it and their own styles are not
   applied separately. `textTransform`, `textAlign`, `whiteSpace: "nowrap" | "pre"`, `lineHeight` (number, px or %).
+  Line breaks follow CSS: a `
+` in the text is a space unless `whiteSpace: "pre"`; `<br>` always breaks. Lines
+  (wrapped or broken) are aligned with each other by `textAlign`.
 - Paint: `background` / `backgroundColor` / `backgroundImage` with a color or a `linear-gradient(...)` (first and last
   stop), `border` (one width and color for all sides), `borderRadius` (one value, px or %), `boxShadow` (first shadow;
   no `inset`, no spread), `opacity`, `transform` with `translate`, `translateX/Y`, `translate3d` and uniform `scale`

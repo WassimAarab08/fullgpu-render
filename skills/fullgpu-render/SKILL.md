@@ -43,7 +43,7 @@ Never render the whole video blind. Work in this order and read every JSON resul
    Pick frames where something happens: the first frame, mid-entrance, the busiest moment, the last frame. Check
    overlap, cut-off text, contrast, alignment and that every element is where you meant it.
 4. Fix and repeat 2-3. A still takes about a second.
-5. `npx fullgpu render <entry> [id] out.mp4 --json` and report `out`, duration and `renderFps` to the user.
+5. `npx fullgpu render <entry> [id] out.mp4 --json` and report `out`, `durationSeconds` and `renderFps` to the user.
 
 Media paths and `staticFile()` resolve from `--public-dir` (default `./public` for Remotion entries, else the current
 directory). Pass `--props '<json>'` for Remotion input props.
@@ -111,5 +111,9 @@ registerRoot(() => <Composition id="Title" component={Title} durationInFrames={1
 | `The entry registers several compositions` | Pass the composition id. |
 | `... is not supported yet by fullgpu-render` on bundle | That `@remotion/*` package or `react-dom` is not available: remove it or replace it. |
 | `frame N is outside the composition` | Frames go from 0 to `durationInFrames - 1`. |
+| `Could not download the engine for vX (HTTP 404)` | No binaries for that version or no network: set `FULLGPU_BIN` to an engine binary. |
+| `text sizes are estimated ...` warning from `check` | The engine was not available; line breaks may differ. Use `still` to confirm. |
+| Centered lines are not centered | Use `<br>` or `whiteSpace: "pre"` for line breaks; a plain `
+` is a space, as in CSS. |
 | `doctor` fails on NVENC or CUDA | Install an ffmpeg build with NVENC and CUDA (on Windows: gyan.dev "full"). |
 | Text looks different from the browser | Check the font is installed; compare with a still. |

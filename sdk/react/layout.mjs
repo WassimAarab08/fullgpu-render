@@ -110,14 +110,18 @@ const isInlineText = (n) => n.type === "#text" || (INLINE.has(n.type) && n.child
 
 function collectText(n, out = []) {
   if (n.type === "#text") out.push(n.text);
-  else if (n.type === "br") out.push("\n");
+  else if (n.type === "br") out.push(BR);
   else n.children.forEach((c) => collectText(c, out));
   return out;
 }
 
+// <br> se marca aparte: con white-space normal los saltos del texto son espacios, pero un <br> siempre parte la línea.
+const BR = " ";
+
 function textOf(nodes, ts) {
   let s = nodes.flatMap((n) => collectText(n)).join("");
-  if (ts.whiteSpace !== "pre" && ts.whiteSpace !== "pre-wrap") s = s.split("\n").map((l) => l.replace(/\s+/g, " ")).join("\n").trim();
+  if (ts.whiteSpace !== "pre" && ts.whiteSpace !== "pre-wrap") s = s.split(BR).map((l) => l.replace(/\s+/g, " ").trim()).join("\n").trim();
+  else s = s.split(BR).join("\n");
   if (ts.textTransform === "uppercase") s = s.toUpperCase();
   else if (ts.textTransform === "lowercase") s = s.toLowerCase();
   else if (ts.textTransform === "capitalize") s = s.replace(/\b\p{L}/gu, (c) => c.toUpperCase());
@@ -403,6 +407,7 @@ function textNode(b, x, y, W, H, texts, at = { L: 0, T: 0 }) {
   const cx = m.wraps ? left + W / 2 : align === "center" ? left + W / 2 : align === "right" ? left + W - m.width / 2 : left + m.width / 2;
   const node = { type: "text", text: b.text, x: cx, y: at.T + y + (m.lines * m.lh) / 2, size: b.ts.fontSize, weight: b.ts.fontWeight, color: hex([r, g, bl]), font: b.ts.fontFamily, lineHeight: m.lh, opacity: a };
   if (m.wraps) Object.assign(node, { maxWidth: round2(W), textAlign: align });
+  else if (b.text.includes("\n")) node.textAlign = align; // líneas por saltos explícitos: se alinean entre sí
   return [node];
 }
 

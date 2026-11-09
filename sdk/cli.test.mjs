@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { resolve as resolvePath } from "node:path";
-import { parseArgs, assetName, binaryCandidates, releaseUrl, inspectFfmpeg, cacheDir, defaultMediaRoot, stillPath, pickComposition, checkLayout } from "./cli.mjs";
+import { parseArgs, assetName, binaryCandidates, releaseUrl, inspectFfmpeg, cacheDir, defaultMediaRoot, stillPath, pickComposition, checkLayout, engineMissingMessage } from "./cli.mjs";
 
 test("parseArgs: render con composición, salida y carpeta de medios opcional", () => {
   assert.deepEqual(parseArgs(["render", "video.mjs", "out.mp4"]), { command: "render", entry: "video.mjs", compositionId: undefined, out: "out.mp4", mediaRoot: undefined, props: undefined, json: false });
@@ -111,4 +111,22 @@ test("checkLayout: medios que faltan y fotogramas con demasiadas primitivas", ()
   assert.equal(r.errors.length, 3);
   assert.match(r.errors.at(-1), /600 draws in frame 1.*512/);
   assert.deepEqual(checkLayout({ streams: [], images: [], audio: null, frames: [{ draws: [] }] }, { exists: () => true, mediaRoot: "/m" }).errors, []);
+});
+
+test("la CLI arranca también a través de un enlace simbólico (npm link, instalación local, pnpm)", async () => {
+  const { mkdtempSync, symlinkSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { spawnSync } = await import("node:child_process");
+  const { fileURLToPath } = await import("node:url");
+  const link = join(mkdtempSync(join(tmpdir(), "fullgpu-link-")), "sdk");
+  symlinkSync(fileURLToPath(new URL(".", import.meta.url)), link, "junction");
+  const r = spawnSync(process.execPath, [join(link, "cli.mjs"), "--version"], { encoding: "utf8" });
+  assert.match(r.stdout, /^\d+\.\d+\.\d+/, `stdout: ${JSON.stringify(r.stdout)} stderr: ${r.stderr}`);
+});
+
+test("engineMissingMessage explica cómo seguir cuando no hay binario para la versión", () => {
+  const m = engineMissingMessage("0.9.0", 404);
+  assert.match(m, /v0\.9\.0/);
+  assert.match(m, /FULLGPU_BIN/);
 });

@@ -108,6 +108,14 @@ impl TextRasterizer {
                 buf.shape_until_scroll(&mut self.fonts, false);
                 (buf, m)
             }
+            // Varias líneas por saltos explícitos y textAlign pedido: se alinean entre sí en el ancho de la más larga
+            // (sin textAlign se quedan a la izquierda, como antes).
+            _ if spec.text_align.is_some() && align != Align::Left && buf.layout_runs().count() > 1 => {
+                buf.set_size(&mut self.fonts, Some(natural + 0.01), None);
+                buf.set_text(&mut self.fonts, &spec.text, &attrs, Shaping::Advanced, Some(align));
+                buf.shape_until_scroll(&mut self.fonts, false);
+                (buf, natural)
+            }
             _ => (buf, natural),
         }
     }
@@ -333,6 +341,20 @@ no es json
         assert!(last(&left).0 < PAD as u32 + 4, "izquierda {:?}", last(&left));
         assert!(last(&center).0 > (wide / 2.0) as u32 - 20, "centro {:?}", last(&center));
         assert!(last(&right).1 > left.w - PAD as u32 - 6, "derecha {:?}", last(&right));
+    }
+
+    #[test]
+    fn text_align_alinea_las_lineas_con_salto_explicito() {
+        let mut t = TextRasterizer::new();
+        let base = TextSpec { line_height: Some(40.0), ..spec("MMMMMMMM
+ii", 32.0) };
+        assert_eq!(t.measure(&base).lines, 2);
+        let wide = t.measure(&spec("MMMMMMMM", 32.0)).width;
+        let center = t.raster_spec(&TextSpec { text_align: Some("center".into()), ..base.clone() });
+        let left = t.raster_spec(&TextSpec { text_align: Some("left".into()), ..base.clone() });
+        let last = |img: &TextImage| ink_columns(img, img.h - vpad(32.0) - 40..img.h - vpad(32.0));
+        assert!(last(&center).0 > (wide / 2.0) as u32 - 20, "centro {:?}", last(&center));
+        assert!(last(&left).0 < PAD as u32 + 4, "izquierda {:?}", last(&left));
     }
 
     #[test]

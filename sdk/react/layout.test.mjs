@@ -167,3 +167,13 @@ test("h1 lleva los márgenes del navegador, pero margin: 0 del autor los anula",
   near(t2.y, 25, "sin margen");
   near(r2.y, 50, "pegado al h1");
 });
+
+test("saltos de línea: en white-space normal son espacios; <br> y white-space: pre parten, y el motor recibe la alineación", async () => {
+  const [a] = await draw(h("div", null, "uno\ndos"));
+  assert.equal(a.text, "uno dos");
+  const [b] = await draw(h("div", { style: { textAlign: "center", width: 400, position: "absolute" } }, "uno", h("br"), "dos tres"));
+  assert.equal(b.text, "uno\ndos tres");
+  assert.equal(b.textAlign, "center", "las líneas se centran entre sí");
+  const [c] = await draw(h("div", { style: { whiteSpace: "pre", textAlign: "right" } }, "a  b\nc"));
+  assert.deepEqual([c.text, c.textAlign], ["a  b\nc", "right"]);
+});

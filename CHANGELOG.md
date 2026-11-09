@@ -15,6 +15,16 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - `AGENTS.md` (and `CLAUDE.md`) for agents working on the repository.
 - React layer: `zIndex` is reported as ignored instead of being accepted silently.
 
+### Fixed
+- The CLI does nothing when started through a symlink (`npm link`, an install from a local folder, pnpm): it now
+  compares real paths.
+- When the engine cannot be downloaded, the error says why and how to continue (`FULLGPU_BIN`); `check` downloads the
+  engine too and falls back to estimated text sizes with a warning that says so.
+- Text line breaks follow CSS: a `
+` is a space unless `whiteSpace: "pre"`, `<br>` always breaks, and lines from
+  explicit breaks are aligned with each other by `textAlign` (SDK texts without `textAlign` keep their old layout).
+- `render` and `check` JSON include `durationSeconds`.
+
 ## [0.4.0] - 2026-10-30
 
 ### Added
